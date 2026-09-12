@@ -20,7 +20,6 @@ Panel {
  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
  property color warningColor: Color.accent
  property var state: ({phase: "unconfigured"})
- property var history: []
  property var disk: null
  property double clockNow: Date.now()/1000
  property int cursor: 0
@@ -43,11 +42,6 @@ Panel {
   id: stateFile; path: root.stateDir + "/state.json"; watchChanges: true; printErrors: false
   onFileChanged: reload()
   onLoaded: { try { root.state=JSON.parse(text()) } catch(e) { root.state={phase:"failed",reason:"Backup status could not be read"} } }
- }
- FileView {
-  id: historyFile; path: root.stateDir + "/history.json"; watchChanges: true; printErrors: false
-  onFileChanged: reload()
-  onLoaded: { try { root.history=JSON.parse(text()) } catch(e) { root.history=[] } }
  }
  FileView {
   id: colors; path: root.home + "/.local/state/omarchy/current/theme/colors.toml"; watchChanges: true; printErrors: false
@@ -118,7 +112,6 @@ Panel {
      DetailRow { label:"Filesystem usage"; value:root.disk ? Status.size(root.disk.usedBytes+root.disk.trashExclusiveBytes)+" / "+Status.size(root.disk.totalBytes) : "Unavailable"; foreground:root.disk && (root.disk.usedBytes+root.disk.trashExclusiveBytes)/root.disk.totalBytes>=0.9 ? root.warningColor : root.foreground }
      DetailRow { visible:root.disk && (root.disk.usedBytes+root.disk.trashExclusiveBytes)/root.disk.totalBytes>=0.9; label:"Storage warning"; value:"Less than 10% disk space remains"; foreground:root.warningColor }
      PanelSeparator { foreground:root.foreground }
-     DetailRow { label:"Recent restore points"; value:root.history.length ? root.history.slice(0,3).map(function(x){return new Date(x.time).toLocaleString()+" · "+(x.short_id || x.id.slice(0,8))}).join("\n") : "No completed backups yet" }
      DetailRow { label:"Last integrity check"; value:Status.dateLabel(root.state.lastMaintenance) }
      Button { width:parent.width; text:root.busy ? "Cancel backup operation" : "Back up now"; iconText:root.busy ? "󰓛" : "󰑓"; bordered:true; hasCursor:root.cursor===0; foreground:root.foreground; onClicked:root.invoke(root.busy ? "cancel" : "now") }
      Button { width:parent.width; text:"View logs"; iconText:"󰆍"; bordered:true; hasCursor:root.cursor===1; foreground:root.foreground; onClicked:root.openLogs() }
