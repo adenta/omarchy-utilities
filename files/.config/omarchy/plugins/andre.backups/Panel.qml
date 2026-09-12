@@ -58,9 +58,9 @@ Panel {
  Timer { interval:5000; repeat:true; running:true; onTriggered: root.clockNow=Date.now()/1000 }
  WidgetButton {
   id: group; anchors.centerIn:parent; bar:root.bar; horizontalMargin:4.5
-  text: (root.busy ? "󰑓 " : "󰁯 ") + (root.disk ? Math.ceil(root.disk.usedBytes/1073741824)+"G" : "--")
+  text: (root.busy ? "󰑓 " : "󰁯 ") + Status.compactSize(root.state.lastBackupBytes)
   foreground:root.barStatusColor
-  tooltipText: "Backups · " + root.description + "\nLast success: " + Status.dateLabel(root.state.lastSuccess)
+  tooltipText: "Backups · " + root.description + "\nFiles in last successful backup: " + Status.size(root.state.lastBackupBytes) + "\nLast success: " + Status.dateLabel(root.state.lastSuccess)
   onPressed: root.toggle()
  }
  KeyboardPanel {
@@ -85,6 +85,7 @@ Panel {
      }
      PanelSeparator { foreground:root.foreground }
      DetailRow { label:"Last successful backup"; value:Status.dateLabel(root.state.lastSuccess) }
+     DetailRow { label:"Files in last successful backup"; value:Status.size(root.state.lastBackupBytes) }
      DetailRow { label:"Next backup"; value:root.busy ? "In progress" : !root.state.lastSuccess || root.clockNow>=root.state.lastSuccess+86400 ? "Due · retries every 15 minutes when eligible" : Status.dateLabel(root.state.lastSuccess+86400) }
      DetailRow { visible:!!root.state.lastError; label:"Last error"; value:root.state.lastError || ""; foreground:root.urgentColor }
      Column {
@@ -107,9 +108,6 @@ Panel {
        value:Progress.estimate(root.state.progress, root.state.updatedAt, root.clockNow)
       }
      }
-     PanelSeparator { foreground:root.foreground }
-     DetailRow { label:"Used excluding Trash"; value:root.disk ? Status.size(root.disk.usedBytes) : "Unavailable" }
-     DetailRow { label:"Filesystem usage"; value:root.disk ? Status.size(root.disk.usedBytes+root.disk.trashExclusiveBytes)+" / "+Status.size(root.disk.totalBytes) : "Unavailable"; foreground:root.disk && (root.disk.usedBytes+root.disk.trashExclusiveBytes)/root.disk.totalBytes>=0.9 ? root.warningColor : root.foreground }
      DetailRow { visible:root.disk && (root.disk.usedBytes+root.disk.trashExclusiveBytes)/root.disk.totalBytes>=0.9; label:"Storage warning"; value:"Less than 10% disk space remains"; foreground:root.warningColor }
      PanelSeparator { foreground:root.foreground }
      DetailRow { label:"Last integrity check"; value:Status.dateLabel(root.state.lastMaintenance) }

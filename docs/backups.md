@@ -11,6 +11,13 @@ the bucket's Restic location using the S3 endpoint. Local `excludes` excludes
 caches, Trash, and the helper's private state/log directory. Keep personal files
 and projects included. Preserve existing exclusions on already-configured hosts.
 
+The bar shows the logical file size of the last successful backup (for example,
+`2G`), with a more precise size and date in the panel and tooltip. This is not
+uploaded bytes or total disk use. The helper records `lastBackupBytes` only after
+the snapshot is finalized; failures and maintenance preserve the previous size.
+Older state without a verified size displays `—` until a successful backup records
+it. Disk usage appears only as a low-space warning.
+
 Use the installed Codex Secrets workflow to create and read back a recovery item
 in personal 1Password. Record its item ID, vault ID, and verification time in
 local `recovery.json` only after verifying the saved credential values.

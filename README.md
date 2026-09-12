@@ -91,6 +91,7 @@ node files/.config/omarchy/plugins/andre.system-pulse/tests/run.js
 node files/.config/omarchy/plugins/andre.backups/tests/run.js
 node files/.config/omarchy/plugins/andre.credits/tests/run.js
 bash tests/backup-policy.sh
+bash tests/backup-size.sh
 node tests/pokemon-screensaver.js
 ```
 

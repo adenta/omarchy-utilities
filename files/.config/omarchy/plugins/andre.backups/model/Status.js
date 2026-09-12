@@ -13,4 +13,12 @@ function description(state, now) {
  return state.reason || phases[state.phase] || "Backup status unavailable"
 }
 function dateLabel(seconds) { return seconds ? new Date(seconds * 1000).toLocaleString() : "Not yet" }
-function size(bytes) { return Number.isFinite(Number(bytes)) ? (Number(bytes)/1073741824).toFixed(1)+" GiB" : "Unavailable" }
+function validSize(bytes) { return typeof bytes === "number" && Number.isFinite(bytes) && bytes >= 0 }
+function size(bytes) { return validSize(bytes) ? (bytes/1073741824).toFixed(1)+" GiB" : "Unavailable" }
+function compactSize(bytes) {
+ if (!validSize(bytes)) return "—"
+ var units = ["B", "K", "M", "G", "T"]
+ var unit = 0
+ while (bytes >= 1024 && unit < units.length-1) { bytes /= 1024; unit++ }
+ return Math.round(bytes) + units[unit]
+}

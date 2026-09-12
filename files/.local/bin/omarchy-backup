@@ -104,7 +104,7 @@ finish_worker() {
 worker() {
  lock_job || { echo 'Another backup operation is active.'; return 0; }
  load_config
- local timestamp last retry reason manual=${1:-} result=0 snapshot maintenance
+ local timestamp last retry reason manual=${1:-} result=0 snapshot maintenance backup_bytes
  timestamp=$(now); last=$(get '.lastSuccess // 0'); retry=$(get '.retryAfter // 0')
  # A prior process may have been terminated by shutdown without executing its trap.
  if [[ $(get '.phase') =~ ^(backing-up|checking|pruning|restoring)$ ]]; then
@@ -154,7 +154,8 @@ worker() {
   fi
   # Tagging changes the snapshot ID; obtain the resulting complete snapshot.
   snapshot=$(restic snapshots --json --tag home-complete --latest 1 | jq -er 'sort_by(.time)[-1].id')
-  update '.phase="ready" | .lastSuccess=$timestamp | .snapshotId=$snapshot | .lastError="" | .reason="" | .retryAfter=0 | .progress={}' --argjson timestamp "$(now)" --arg snapshot "$snapshot"
+  backup_bytes=$(jq -sf "$lib_dir/summary-size.jq" "$runlog") || backup_bytes=null
+  update '.phase="ready" | .lastSuccess=$timestamp | .snapshotId=$snapshot | .lastBackupBytes=$bytes | .lastError="" | .reason="" | .retryAfter=0 | .progress={}' --argjson timestamp "$(now)" --arg snapshot "$snapshot" --argjson bytes "$backup_bytes"
   refresh_history
  fi
  maintenance=$(get '.lastMaintenance // 0')
