@@ -66,7 +66,12 @@ or Codex Ops. Verify copy, paste, select-all, and Ctrl+C interruption.
 
 ### Dictation shortcuts
 
-Grace uses Hyprland shortcuts without raw input-device access. Add
+Grace dictation is deferred until its microphone is available. Its app, service,
+settings, and build were removed from active locations; keep the source here for
+that future setup. XPS dictation remains installed. The Deepgram credential on
+Grace remains local for the shared credits panel.
+
+When resuming Grace setup, use Hyprland shortcuts without raw input-device access. Add
 `require("hypr.voxtype-shortcuts")` once to local `hyprland.lua`, and copy
 `examples/voxtype-compositor.conf` to
 `~/.config/systemd/user/voxtype-deepgram.service.d/shortcuts.conf`.
