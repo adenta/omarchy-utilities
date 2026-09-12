@@ -1,0 +1,6 @@
+#!/bin/bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+set -euo pipefail
+
+# Synchronize after the desktop starts, even if darkman started earlier.
+exec "$HOME/.local/share/darkman/omarchy-nightlight"

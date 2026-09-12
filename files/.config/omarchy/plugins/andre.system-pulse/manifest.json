@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "andre.system-pulse",
+  "name": "My System Pulse",
+  "version": "1.0.0",
+  "author": "Fernando Menolli; maintained fork by thenailedone",
+  "license": "MIT",
+  "description": "Auditable CPU and memory meters with PID-safe process accounting and htop one click away.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "My System Pulse",
+    "description": "CPU and RAM readings with top processes and htop.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalMs": 2000,
+      "urgentThreshold": 85,
+      "processLimit": 4
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalMs",
+        "type": "integer",
+        "label": "Refresh interval (ms)",
+        "min": 500,
+        "max": 10000,
+        "step": 250,
+        "defaultValue": 2000
+      },
+      {
+        "key": "urgentThreshold",
+        "type": "integer",
+        "label": "Urgent above (%)",
+        "min": 50,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 85
+      },
+      {
+        "key": "processLimit",
+        "type": "integer",
+        "label": "Rows per process list",
+        "min": 3,
+        "max": 8,
+        "step": 1,
+        "defaultValue": 4
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+engine = "deepgram"
+
+[hotkey]
+key = "INSERT"
+mode = "toggle"
+enabled = true
+cancel_key = "ESC"
+
+[audio]
+pause_media = false
+duck_media = false
+
+[deepgram]
+model = "nova-3"
+language = "en"
+streaming = true
+type_partials = false
+endpointing_ms = 300
+smart_format = true
+mip_opt_out = true
+
+[output]
+destination_guard = true
+mode = "paste"
+paste_keys = "shift+insert"
+fallback_to_clipboard = true
+restore_clipboard = true
+restore_clipboard_delay_ms = 1500
+
+[output.notification]
+on_transcription = false
+
+[osd]
+opacity = 0.5
+position = "top-center"
+top_margin = 0.04
+waveform_gain = 1.5

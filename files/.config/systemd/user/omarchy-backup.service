@@ -1,0 +1,17 @@
+[Unit]
+Description=Encrypted home backup to Backblaze B2
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-backup run
+KillMode=mixed
+TimeoutStartSec=infinity
+TimeoutStopSec=60
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

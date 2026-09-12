@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+set -euo pipefail
+
+api_key=$(secret-tool lookup application voxtype provider deepgram)
+test -n "$api_key"
+
+projects_json=$(
+  printf 'header = "Authorization: Token %s"\n' "$api_key" |
+    curl --config - --silent --show-error --fail-with-body \
+      --connect-timeout 10 --max-time 30 \
+      https://api.deepgram.com/v1/projects
+)
+project_id=$(printf '%s' "$projects_json" | jq -er '.projects[0].project_id')
+
+balances_json=$(
+  printf 'header = "Authorization: Token %s"\n' "$api_key" |
+    curl --config - --silent --show-error --fail-with-body \
+      --connect-timeout 10 --max-time 30 \
+      "https://api.deepgram.com/v1/projects/$project_id/balances"
+)
+
+printf '%s' "$balances_json" |
+  jq -er '[.balances[] | select(.units == "usd") | .amount] | add'

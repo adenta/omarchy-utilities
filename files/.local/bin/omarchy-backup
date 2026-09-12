@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+# omarchy:summary=Manage encrypted home backups (restoration is CLI-only)
+set -Eeuo pipefail
+umask 077
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+config_dir=${OMARCHY_BACKUP_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy-backup}
+state_dir=${OMARCHY_BACKUP_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-backup}
+lib_dir=${OMARCHY_BACKUP_LIB_DIR:-$HOME/.local/lib/omarchy-backup}
+source "$lib_dir/policy.sh"
+mkdir -p "$state_dir" "$state_dir/logs"
+state="$state_dir/state.json"
+[[ -f $state ]] || printf '{"phase":"unconfigured","lastSuccess":0,"lastMaintenance":0,"retryAfter":0,"createdAt":%s}\n' "$(date +%s)" > "$state"
+now() { date +%s; }
+get() { jq -r "$1" "$state"; }
+update() {
+ local filter=$1; shift
+ local temp
+ temp=$(mktemp "$state_dir/.state.XXXXXX")
+ jq "$@" "$filter | .updatedAt = now | .version = 1" "$state" > "$temp"
+ mv -f "$temp" "$state"
+}
+notify_issue() {
+ local kind=$1 text=$2 timestamp last
+ timestamp=$(now); last=$(get ".notifications.$kind // 0")
+ if (( timestamp - last >= 86400 )); then
+  notify-send -a Backups -u normal 'Omarchy backups' "$text" >/dev/null 2>&1 || true
+  update '.notifications[$kind] = $timestamp' --arg kind "$kind" --argjson timestamp "$timestamp"
+ fi
+}
+load_config() {
+ [[ -f $config_dir/config.json ]] || { echo 'Backup is not configured.' >&2; return 1; }
+ bucket=$(jq -er '.bucket' "$config_dir/config.json")
+ export RESTIC_REPOSITORY
+ RESTIC_REPOSITORY=$(jq -er '.repository' "$config_dir/config.json")
+ backup_source=$(jq -er '.source' "$config_dir/config.json")
+}
+credentials() {
+ local collection locked credential
+ collection=$(timeout 5 busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.Secret.Service ReadAlias s default 2>/dev/null | cut -d '"' -f2) || return 1
+ [[ -n $collection && $collection != / ]] || return 1
+ locked=$(timeout 5 busctl --user get-property org.freedesktop.secrets "$collection" org.freedesktop.Secret.Collection Locked 2>/dev/null) || return 1
+ [[ $locked == 'b false' ]] || return 1
+ credential=$(timeout 10 secret-tool lookup application omarchy-backup provider backblaze bucket "$bucket" 2>/dev/null) || return 1
+ AWS_ACCESS_KEY_ID=$(jq -er '.keyId' <<< "$credential") || return 1
+ AWS_SECRET_ACCESS_KEY=$(jq -er '.applicationKey' <<< "$credential") || return 1
+ RESTIC_PASSWORD=$(timeout 10 secret-tool lookup application omarchy-backup provider restic bucket "$bucket" 2>/dev/null) || return 1
+ [[ -n $RESTIC_PASSWORD ]] || return 1
+ export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY RESTIC_PASSWORD
+ export RESTIC_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/restic"
+ unset credential
+}
+lock_job() { exec 9> "$state_dir/operation.lock"; flock -n 9; }
+clear_secrets() { unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY RESTIC_PASSWORD; }
+child=''; interrupted_reason=''
+stop_child() {
+ interrupted_reason=${interrupted_reason:-Cancelled}
+ if [[ -n $child ]]; then kill -TERM "$child" 2>/dev/null || true; fi
+}
+# Logs are local/private, bounded to the most recent 14 days, and excluded from backups.
+run_restic() {
+ local operation=$1; shift
+ local stamp rc=0 progress reason
+ stamp="$(date +%Y%m%dT%H%M%S)-$operation"
+ runlog="$state_dir/logs/$stamp.jsonl"
+ errlog="$state_dir/logs/$stamp.log"
+ update '.phase=$phase | .reason="" | .progress={} | .operationStarted=$started' --arg phase "$operation" --argjson started "$(now)"
+ printf 'Backups: %s\n' "$operation"
+ restic "$@" > "$runlog" 2> "$errlog" &
+ child=$!
+ while kill -0 "$child" 2>/dev/null; do
+  if reason=$(backup_power_reason); then :; else interrupted_reason=$reason; stop_child; break; fi
+  progress=$(tail -n 8 "$runlog" | jq -sc '[.[] | select(.message_type == "status")][-1] // {}' 2>/dev/null) || progress='{}'
+  update '.progress=$progress' --argjson progress "$progress"
+  sleep 5 & wait $! || true
+  [[ -z $interrupted_reason ]] || break
+ done
+ wait "$child" || rc=$?
+ child=''
+ if [[ -n $interrupted_reason ]]; then
+  update '.phase="waiting" | .reason=$reason | .progress={}' --arg reason "$interrupted_reason"
+  return 130
+ fi
+ return "$rc"
+}
+refresh_history() {
+ local temp
+ temp=$(mktemp "$state_dir/.history.XXXXXX")
+ if restic snapshots --json --tag home-complete > "$temp" 2>/dev/null; then
+  jq 'sort_by(.time) | reverse | .[:10] | map({id,short_id,time,paths})' "$temp" > "$temp.clean"
+  mv -f "$temp.clean" "$state_dir/history.json"
+ fi
+ rm -f "$temp"
+}
+finish_worker() {
+ local result=$?
+ clear_secrets
+ if (( result != 0 )) && [[ $(get '.phase') != failed && $(get '.phase') != waiting ]]; then
+  update '.phase="failed" | .lastError="Backup service exited unexpectedly; see logs" | .reason=.lastError | .retryAfter=$retry' --argjson retry "$(( $(now)+3600 ))"
+  notify_issue failure 'Backup service needs attention. Open Backups for details.'
+ fi
+ return "$result"
+}
+worker() {
+ lock_job || { echo 'Another backup operation is active.'; return 0; }
+ load_config
+ local timestamp last retry reason manual=${1:-} result=0 snapshot maintenance
+ timestamp=$(now); last=$(get '.lastSuccess // 0'); retry=$(get '.retryAfter // 0')
+ # A prior process may have been terminated by shutdown without executing its trap.
+ if [[ $(get '.phase') =~ ^(backing-up|checking|pruning|restoring)$ ]]; then
+  update '.phase="waiting" | .reason="Previous operation was interrupted"'
+ fi
+ if (( timestamp - (last > 0 ? last : $(get '.createdAt')) >= 172800 )); then
+  notify_issue overdue 'No successful backup in the last 48 hours. Open Backups for details.'
+ fi
+ if [[ $manual != --manual ]]; then
+  if ! backup_due "$timestamp" "$last"; then
+   maintenance=$(get '.lastMaintenance // 0')
+   (( timestamp - maintenance >= 604800 )) || return 0
+  fi
+  backup_retry_due "$timestamp" "$retry" || return 0
+ fi
+ if reason=$(backup_power_reason); then :; else
+  update '.phase="waiting" | .reason=$reason' --arg reason "$reason"; return 0
+ fi
+ [[ -f $config_dir/recovery.json ]] || { update '.phase="unconfigured" | .reason="Recovery credentials have not been verified"'; return 1; }
+ if ! credentials; then
+  update '.phase="waiting" | .reason="Keyring is locked or backup credentials are unavailable"'; return 0
+ fi
+ # Avoid a long connection timeout on a disconnected laptop.
+ if ! timeout 5 curl -sS --connect-timeout 3 --max-time 4 -o /dev/null "https://s3.us-east-005.backblazeb2.com" 2>/dev/null; then
+  update '.phase="waiting" | .reason="Waiting for network access"'; clear_secrets; return 0
+ fi
+ trap stop_child TERM INT
+ trap finish_worker EXIT
+ if [[ $manual == --manual ]] || backup_due "$timestamp" "$last"; then
+  mkdir -p "$config_dir/inventory"
+  pacman -Q > "$config_dir/inventory/packages-with-versions.txt"
+  pacman -Qqen > "$config_dir/inventory/official-explicit.txt"
+  pacman -Qqem > "$config_dir/inventory/foreign-explicit.txt" || true
+  update '.lastAttempt=$timestamp | .retryAfter=0' --argjson timestamp "$timestamp"
+  run_restic backing-up backup --json --exclude-caches --exclude-file "$config_dir/excludes" --tag home-pending -- "$backup_source" || result=$?
+  if (( result != 0 )); then
+   if (( result != 130 )); then
+    update '.phase="failed" | .lastError="Backup incomplete; see logs" | .reason=.lastError | .retryAfter=$retry | .progress={}' --argjson retry "$(( $(now)+3600 ))"
+    notify_issue failure 'Backup did not complete. The previous successful backup remains available.'
+   fi
+   return "$result"
+  fi
+  snapshot=$(jq -sr '[.[] | select(.message_type=="summary")][-1].snapshot_id // empty' "$runlog")
+  if [[ ! $snapshot =~ ^[a-f0-9]{8,64}$ ]] || ! restic tag --remove home-pending --add home-complete "$snapshot" >/dev/null 2>> "$errlog"; then
+   update '.phase="failed" | .lastError="Could not finalize the snapshot" | .reason=.lastError | .retryAfter=$retry' --argjson retry "$(( $(now)+3600 ))"
+   notify_issue failure 'Backup could not be finalized. Open Backups for details.'; return 1
+  fi
+  # Tagging changes the snapshot ID; obtain the resulting complete snapshot.
+  snapshot=$(restic snapshots --json --tag home-complete --latest 1 | jq -er 'sort_by(.time)[-1].id')
+  update '.phase="ready" | .lastSuccess=$timestamp | .snapshotId=$snapshot | .lastError="" | .reason="" | .retryAfter=0 | .progress={}' --argjson timestamp "$(now)" --arg snapshot "$snapshot"
+  refresh_history
+ fi
+ maintenance=$(get '.lastMaintenance // 0')
+ if (( $(now) - maintenance >= 604800 )); then
+  result=0
+  # Only successful snapshots participate in retention. Incomplete snapshots remain
+  # visible to the CLI and cannot displace complete recovery points.
+  run_restic pruning forget --tag home-complete --group-by host,paths --keep-daily 30 --keep-weekly 12 --keep-monthly 12 --prune || result=$?
+  if (( result == 0 )); then run_restic checking check || result=$?; fi
+  if (( result != 0 )); then
+   if (( result != 130 )); then
+    update '.phase="failed" | .lastError="Backup maintenance failed; latest backup is still recorded" | .reason=.lastError | .retryAfter=$retry | .progress={}' --argjson retry "$(( $(now)+3600 ))"
+    notify_issue maintenance 'Backup maintenance needs attention. Open Backups for details.'
+   fi
+   return "$result"
+  fi
+  update '.lastMaintenance=$timestamp' --argjson timestamp "$(now)"
+  refresh_history
+ fi
+ update '.phase="ready" | .reason="" | .lastError="" | .retryAfter=0 | .progress={}'
+ find "$state_dir/logs" -type f -mtime +14 -delete
+ clear_secrets
+}
+[[ ${BASH_SOURCE[0]} != "$0" ]] && return 0
+case ${1:-status} in
+ status)
+  jq --argjson current "$(now)" '. + {overdue: ($current - (if (.lastSuccess // 0)>0 then .lastSuccess else .createdAt end) >= 172800), nextDue: (if (.lastSuccess // 0)>0 then .lastSuccess+86400 else 0 end)}' "$state"
+  ;;
+ run) worker "${2:-}" ;;
+ now) systemctl --user start --no-block omarchy-backup-manual.service ;;
+ cancel) systemctl --user stop --no-block omarchy-backup.service omarchy-backup-manual.service ;;
+ history) load_config; credentials || { echo 'Unlock Keyring first.' >&2; exit 1; }; restic snapshots --tag home-complete; clear_secrets ;;
+ logs)
+  journalctl --user -u omarchy-backup.service -u omarchy-backup-manual.service --since '7 days ago' --no-pager -n 60
+  recent=$(find "$state_dir/logs" -type f -name '*.log' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d ' ' -f2-)
+  if [[ -n $recent ]]; then printf '\nLatest operation details:\n'; tail -n 40 "$recent"; fi
+  printf '\nDetailed logs: %s\n' "$state_dir/logs" ;;
+
+ log-files) printf '%s\n' "$state_dir/logs" ;;
+ init)
+  lock_job || exit 1; load_config
+  [[ -f $config_dir/recovery.json ]] || { echo 'Verify the recovery item first.' >&2; exit 1; }
+  credentials || { echo 'Unlock Keyring first.' >&2; exit 1; }
+  result=0; restic cat config >/dev/null 2> "$state_dir/logs/init.log" || result=$?
+  if (( result == 10 )); then restic init; elif (( result != 0 )); then echo 'Repository check failed. Refusing to initialize over an uncertain result.' >&2; exit "$result"; fi
+  update '.phase="waiting" | .reason="Ready for the first scheduled backup"'
+  clear_secrets ;;
+ restore)
+  shift
+  [[ $# -ge 1 && $1 =~ ^[a-f0-9]{8,64}$ ]] || { echo 'Usage: omarchy-backup restore SNAPSHOT_ID [PATH ...]' >&2; exit 2; }
+  snapshot=$1; shift; lock_job || { echo 'Another backup operation is active.' >&2; exit 1; }
+  load_config; reason=$(backup_power_reason) || { echo "$reason" >&2; exit 1; }
+  credentials || { echo 'Unlock Keyring first.' >&2; exit 1; }
+  target=$(mktemp -d "$HOME/Downloads/Omarchy-restore-$(date +%Y%m%d-%H%M%S)-XXXXXX")
+  args=(); for item in "$@"; do args+=(--include "$item"); done
+  trap stop_child TERM INT; trap clear_secrets EXIT
+  result=0; run_restic restoring restore "$snapshot" --verify --target "$target" "${args[@]}" || result=$?
+  if (( result == 0 )); then update '.phase="ready" | .reason="" | .progress={}'; else update '.phase="failed" | .reason="Restore incomplete; see logs" | .progress={}'; fi
+  printf 'Restore directory: %s\n' "$target"
+  exit "$result" ;;
+ *) echo 'Usage: omarchy-backup {status|now|cancel|history|logs|log-files|restore SNAPSHOT_ID [PATH ...]}' >&2; exit 2 ;;
+esac

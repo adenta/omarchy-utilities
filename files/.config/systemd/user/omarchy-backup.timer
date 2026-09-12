@@ -1,0 +1,13 @@
+[Unit]
+Description=Check whether the daily home backup is due
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00
+Persistent=true
+RandomizedDelaySec=30
+AccuracySec=30
+Unit=omarchy-backup.service
+WakeSystem=false
+
+[Install]
+WantedBy=timers.target

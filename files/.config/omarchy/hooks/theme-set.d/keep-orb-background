@@ -1,0 +1,16 @@
+#!/bin/bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+
+case "$1" in
+  catppuccin-latte)
+    wallpaper="$HOME/.config/omarchy/backgrounds/auto/orb-day-blue.png"
+    ;;
+  tokyo-night)
+    wallpaper="$HOME/.config/omarchy/backgrounds/auto/orb-night-short-fade.png"
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+/usr/share/omarchy/bin/omarchy theme bg set "$wallpaper"

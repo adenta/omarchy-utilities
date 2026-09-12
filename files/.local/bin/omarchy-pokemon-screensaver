@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+
+# Choose one Pokémon, then delegate all window and animation behavior to
+# the personal screensaver launcher and Omarchy renderer.
+
+set -euo pipefail
+
+readonly selector="$HOME/.local/bin/omarchy-pokemon-select"
+readonly screensaver_launcher="$HOME/.config/omarchy/screensaver/launch"
+
+if [[ ${1:-} == "--pick-only" ]]; then
+  exec "$selector"
+fi
+
+# Preserve the launcher's no-op behavior without changing the artwork
+# underneath an already-running screensaver.
+if pgrep -f '[o]rg.omarchy.screensaver' >/dev/null; then
+  exec "$screensaver_launcher" "$@"
+fi
+
+# Do not rotate the saved artwork when the screensaver itself is disabled.
+if omarchy-toggle-enabled screensaver-off && [[ ${1:-} != "force" ]]; then
+  exec "$screensaver_launcher" "$@"
+fi
+
+"$selector" >/dev/null
+exec "$screensaver_launcher" "$@"

@@ -1,0 +1,7 @@
+{
+  "system.screensaver": {
+    "icon": "󱄄",
+    "label": "Screensaver",
+    "action": "$HOME/.local/bin/omarchy-pokemon-screensaver force"
+  }
+}

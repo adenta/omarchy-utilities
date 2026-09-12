@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+
+set -euo pipefail
+
+readonly art_dir="$HOME/.local/share/omarchy-pokemon-screensaver/art"
+readonly target="$HOME/.config/omarchy/branding/screensaver.txt"
+readonly state_dir="$HOME/.local/state/omarchy-pokemon-screensaver"
+readonly cycle_state="$state_dir/cycle-state"
+readonly last_selection="$state_dir/last-selection"
+
+output=basename
+case ${1:-} in
+--path)
+  output=path
+  shift
+  ;;
+"") ;;
+*)
+  printf 'Usage: %s [--path]\n' "${0##*/}" >&2
+  exit 2
+  ;;
+esac
+(( $# == 0 )) || exit 2
+
+mapfile -d '' art_files < <(
+  find "$art_dir" -maxdepth 1 -type f -name '[0-9][0-9][0-9]-*.txt' -print0 | sort -z
+)
+
+if (( ${#art_files[@]} != 251 )); then
+  printf 'Expected 251 Pokémon artworks in %s; found %d.\n' \
+    "$art_dir" "${#art_files[@]}" >&2
+  exit 1
+fi
+
+target_dir=${target%/*}
+mkdir -p "$target_dir" "$state_dir"
+
+# Serialize callers so each successful selection consumes one queue entry.
+exec {selection_lock}>"$state_dir/selection.lock"
+flock "$selection_lock"
+
+fail() {
+  printf 'Pokémon selection: %s\n' "$*" >&2
+  exit 1
+}
+
+declare -A available=() seen=()
+art_names=()
+for artwork in "${art_files[@]}"; do
+  name=${artwork##*/}
+  available["$name"]=1
+  art_names+=("$name")
+done
+
+validate_names() {
+  local name
+  for name in "$@"; do
+    [[ -n $name ]] || fail "Empty filename in saved state; progress was not reset."
+    [[ ${available["$name"]+present} ]] || fail "Unknown artwork in saved state: $name; progress was not reset."
+    [[ ! ${seen["$name"]+present} ]] || fail "Duplicate artwork in saved state: $name; progress was not reset."
+    seen["$name"]=1
+  done
+}
+
+queue=()
+shuffle=false
+previous=""
+if [[ -e $cycle_state || -L $cycle_state ]]; then
+  [[ -f $cycle_state && -r $cycle_state ]] || fail "Cannot read cycle state: $cycle_state"
+  mapfile -t saved < "$cycle_state"
+  (( ${#saved[@]} >= 1 && ${#saved[@]} <= ${#art_files[@]} )) || fail "Invalid cycle state length; progress was not reset."
+  validate_names "${saved[@]}"
+  # The first line is the last choice; remaining lines are the unshown queue.
+  queue=("${saved[@]:1}")
+else
+  if [[ -e $last_selection || -L $last_selection ]]; then
+    [[ -f $last_selection && -r $last_selection ]] || fail "Cannot read legacy state: $last_selection"
+    mapfile -t saved < "$last_selection"
+    (( ${#saved[@]} == 1 )) || fail "Invalid legacy state; progress was not reset."
+    validate_names "${saved[@]}"
+    previous=${saved[0]}
+  fi
+
+  # During migration the previous choice already counts toward this cycle.
+  for name in "${art_names[@]}"; do
+    [[ $name == "$previous" ]] || queue+=("$name")
+  done
+  shuffle=true
+fi
+
+if (( ${#queue[@]} == 0 )); then
+  queue=("${art_names[@]}")
+  shuffle=true
+fi
+
+if "$shuffle"; then
+  # Capture shuf's status before reading its output, so a failure cannot save
+  # an empty queue. Each new cycle is independent of the previous cycle.
+  shuffled=$(printf '%s\n' "${queue[@]}" | shuf)
+  mapfile -t queue <<< "$shuffled"
+fi
+
+chosen_name=${queue[0]}
+chosen="$art_dir/$chosen_name"
+
+target_temp=""
+state_temp=""
+cleanup() {
+  [[ -z $target_temp ]] || rm -f -- "$target_temp"
+  [[ -z $state_temp ]] || rm -f -- "$state_temp"
+}
+trap cleanup EXIT
+target_temp=$(mktemp "$target_dir/.screensaver.txt.XXXXXX")
+state_temp=$(mktemp "$state_dir/.cycle-state.XXXXXX")
+
+cp -- "$chosen" "$target_temp"
+chmod 0644 "$target_temp"
+printf '%s\n' "$chosen_name" "${queue[@]:1}" > "$state_temp"
+
+mv -fT -- "$target_temp" "$target"
+mv -fT -- "$state_temp" "$cycle_state"
+trap - EXIT
+
+# A committed cycle takes precedence if a previous migration was interrupted.
+if ! rm -f -- "$last_selection"; then
+  printf 'Warning: could not remove legacy Pokémon state: %s\n' "$last_selection" >&2
+fi
+
+if [[ $output == path ]]; then
+  printf '%s\n' "$chosen"
+else
+  printf '%s\n' "${chosen##*/}"
+fi

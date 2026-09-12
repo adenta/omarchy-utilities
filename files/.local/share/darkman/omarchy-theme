@@ -1,0 +1,14 @@
+#!/bin/bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+
+case "$1" in
+  light)
+    OMARCHY_THEME_SKIP_BACKGROUND=1 /usr/share/omarchy/bin/omarchy theme set "Catppuccin Latte"
+    ;;
+  dark)
+    OMARCHY_THEME_SKIP_BACKGROUND=1 /usr/share/omarchy/bin/omarchy theme set "Tokyo Night"
+    ;;
+  *)
+    exit 1
+    ;;
+esac

@@ -1,0 +1,29 @@
+#!/bin/bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+set -euo pipefail
+
+# Darkman supplies the solar mode at sunrise/sunset. With no argument, sync
+# to its current mode after login or when this script is run manually.
+mode=${1:-$(darkman get)}
+case "$mode" in
+  dark) action=enable; temperature=4000 ;;
+  light) action=disable; temperature=6500 ;;
+  *) echo "Unexpected darkman mode: $mode" >&2; exit 1 ;;
+esac
+
+export OMARCHY_PATH=${OMARCHY_PATH:-/usr/share/omarchy}
+
+# The shell can still be starting when darkman or the post-boot hook runs.
+# Use explicit enable/disable so repeated calls do not toggle the result.
+for ((attempt = 0; attempt < 20; attempt++)); do
+  if omarchy-shell nightlight "$action" >/dev/null 2>&1; then
+    sleep 0.3
+    if [[ $(hyprctl hyprsunset temperature 2>/dev/null) == "$temperature" ]]; then
+      exit 0
+    fi
+  fi
+  sleep 1
+done
+
+echo "Could not apply $mode night-light setting ($temperature K)" >&2
+exit 1

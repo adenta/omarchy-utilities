@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+# Clipboard text stays in pipes and tmux memory, never temporary files.
+set -euo pipefail
+case ${1-} in
+  copy)
+    exec wl-copy
+    ;;
+  paste)
+    [[ $# == 3 && $3 =~ ^%[0-9]+$ ]] || exit 2
+    socket=$2
+    pane=$3
+    buffer="codex-paste-$BASHPID"
+    cleanup() { tmux -S "$socket" delete-buffer -b "$buffer" 2>/dev/null || true; }
+    trap cleanup EXIT
+    if wl-paste --no-newline | tmux -S "$socket" load-buffer -b "$buffer" -; then
+      tmux -S "$socket" paste-buffer -p -r -d -b "$buffer" -t "$pane"
+    else
+      tmux -S "$socket" display-message -t "$pane" 'Clipboard unavailable; nothing pasted.'
+      exit 1
+    fi
+    ;;
+  *) exit 2 ;;
+esac

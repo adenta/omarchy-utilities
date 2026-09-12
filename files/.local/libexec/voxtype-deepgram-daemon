@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+set -euo pipefail
+
+DEEPGRAM_API_KEY="$(secret-tool lookup application voxtype provider deepgram)"
+if [[ -z "$DEEPGRAM_API_KEY" ]]; then
+    notify-send 'VoxType Deepgram' 'Deepgram credential is missing from Secret Service.' || true
+    exit 1
+fi
+export DEEPGRAM_API_KEY
+
+exec "$HOME/.local/bin/voxtype-deepgram" \
+    --config "$HOME/.config/voxtype-deepgram/config.toml" \
+    --quiet daemon

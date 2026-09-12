@@ -1,0 +1,14 @@
+[Unit]
+Description=Manually requested encrypted home backup
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-backup run --manual
+KillMode=mixed
+TimeoutStartSec=infinity
+TimeoutStopSec=60
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0077
+NoNewPrivileges=true

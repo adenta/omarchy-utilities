@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
+set -uo pipefail
+
+read -r used_bytes total_bytes < <(
+  df -B1 --output=used,size / | awk 'NR == 2 { print $1, $2 }'
+)
+test -n "${used_bytes:-}"
+test -n "${total_bytes:-}"
+
+trash_dir="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
+trash_exclusive_bytes=0
+if [ -d "$trash_dir" ]; then
+  trash_output=$(btrfs filesystem du -s --raw "$trash_dir" 2>/dev/null || true)
+  trash_exclusive_bytes=$(
+    printf '%s\n' "$trash_output" |
+      awk '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ { value = $2 } END { if (value != "") print value }'
+  )
+  test -n "$trash_exclusive_bytes"
+fi
+
+printf '%s %s %s\n' "$used_bytes" "$total_bytes" "$trash_exclusive_bytes"

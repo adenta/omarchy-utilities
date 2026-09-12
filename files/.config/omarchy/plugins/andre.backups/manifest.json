@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "andre.backups",
+  "name": "Backups",
+  "version": "1.0.0",
+  "author": "Andre",
+  "license": "MIT",
+  "description": "Encrypted backup status and disk usage.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Backups",
+    "description": "Encrypted backup status and disk usage.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {},
+    "schema": []
+  }
+}

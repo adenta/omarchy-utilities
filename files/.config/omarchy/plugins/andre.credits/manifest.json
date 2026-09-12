@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "andre.credits",
+  "name": "Credits",
+  "version": "1.0.0",
+  "author": "Andre",
+  "license": "MIT",
+  "description": "Service balances, starting with Deepgram.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Credits",
+    "description": "Service balances, starting with Deepgram.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {},
+    "schema": []
+  }
+}

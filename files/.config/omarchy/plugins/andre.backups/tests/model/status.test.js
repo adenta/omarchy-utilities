@@ -1,0 +1,7 @@
+const {load,test,eq}=require('../harness.js')
+const S=load('Status.js')
+test('healthy state is neutral',()=>eq(S.severity({phase:'ready',lastSuccess:999},1000),'neutral'))
+test('backup activity uses accent',()=>eq(S.severity({phase:'backing-up',updatedAt:999},1000),'active'))
+test('waiting cannot mask overdue status',()=>eq(S.severity({phase:'waiting',lastSuccess:1},200000),'warning'))
+test('waiting cannot mask earlier failure',()=>eq(S.severity({phase:'waiting',lastSuccess:199999,lastError:'failed'},200000),'error'))
+test('stale active state is not shown as working',()=>eq(S.description({phase:'backing-up',updatedAt:1},1000),'Waiting for the backup service to resume'))

@@ -1,0 +1,17 @@
+[Unit]
+Description=VoxType Deepgram streaming voice-to-text daemon
+Documentation=https://github.com/adenta/voxtype
+PartOf=graphical-session.target
+After=graphical-session.target pipewire.service pipewire-pulse.service
+Wants=ydotool.service
+Conflicts=voxtype.service
+
+[Service]
+Type=simple
+Environment=VOXTYPE_CONFIG=%h/.config/voxtype-deepgram/config.toml
+ExecStart=%h/.local/libexec/voxtype-deepgram-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
