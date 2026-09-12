@@ -25,3 +25,7 @@ service has changed materially. To restore the packaged service immediately:
 ```sh
 omarchy plugin remove andre.idle --yes
 ```
+
+Omarchy 4.0.3 compatibility: read the public `shell.idleConfig` interface.
+Retain the earlier `shell.shellConfig.idle` lookup for machines using the older
+shell interface. Idle timeout values stay in each machine’s `shell.json`.
