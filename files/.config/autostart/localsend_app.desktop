@@ -1,0 +1,9 @@
+# Source: https://github.com/adenta/omarchy-utilities
+[Desktop Entry]
+Type=Application
+Name=LocalSend
+Comment=Receive files in the background after desktop login
+Exec=/usr/bin/localsend --hidden
+TryExec=/usr/bin/localsend
+StartupNotify=false
+Terminal=false

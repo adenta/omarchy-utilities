@@ -25,7 +25,8 @@ directly over existing configuration.
 | Home backups | `files/.local/bin/omarchy-backup`, `files/.local/lib/omarchy-backup/`, three user systemd units | Restic, jq, curl, libsecret, util-linux, libnotify; run `bash tests/backup-policy.sh`, first backup, repository check, and sample restore. See [backup setup](docs/backups.md). |
 | Performance recording | `system/etc/default/atop` and three systemd drop-ins | Atop; 600-second samples, seven generations; verify current log and enabled recorder/rotation units. |
 | Dictation integration | `files/.config/voxtype-deepgram/`, user service, and `files/.local/libexec/voxtype-deepgram-daemon` | Custom [VoxType](https://github.com/adenta/voxtype) build, desktop integration, keyring; verify Insert toggle, buffered paste, clipboard restoration, and destination protection. |
-| Default file-dialog folder | `files/.config/systemd/user/xdg-desktop-portal-gtk.service.d/` | GTK desktop portal; new dialogs without a specified folder begin at Downloads. |
+| LocalSend background receiver | `files/.config/autostart/localsend_app.desktop` and the local minimize-to-tray preference | LocalSend; start hidden after desktop login, keep listening when its window closes, and verify port 53317 from the other machine. |
+| Default file-dialog folder | `examples/file-chooser.dconf` and `files/.config/systemd/user/xdg-desktop-portal-gtk.service.d/` | GTK 3/4, dconf, GTK desktop portal; new portal dialogs without an app-specified folder begin at Downloads. |
 
 ## Personal integration
 
@@ -63,6 +64,41 @@ fi
 
 This is an optional personal terminal integration, not a modification of Codex
 or Codex Ops. Verify copy, paste, select-all, and Ctrl+C interruption.
+
+### LocalSend and file dialogs
+
+Apply these preferences on both XPS and Grace.
+
+- Install the LocalSend desktop entry in `~/.config/autostart/`. Inspect and
+  back up any existing LocalSend entries first; keep only one enabled entry.
+  Older installations may use `org.localsend.localsend_app.desktop` instead.
+  Run `systemctl --user daemon-reload` after copying. Omarchy's existing XDG
+  autostart target runs it at desktop login; no extra service is needed.
+- Enable **Minimize to tray** in LocalSend. The local preference is
+  `flutter.ls_minimize_to_tray=true` in
+  `~/.local/share/org.localsend.localsend_app/shared_preferences.json`.
+  If editing it directly, first confirm no transfer is active and quit the app,
+  back up the file privately, change only that key, then reopen LocalSend.
+  Never commit or copy the whole preferences file: it contains device identity,
+  security material, and receive history. The app's **Autostart** and
+  **Autostart (hidden)** switches should both be enabled. See
+  [upstream startup behavior](https://github.com/localsend/localsend/blob/v1.18.2/app/lib/util/native/autostart_helper.dart).
+- Verify a hidden launch listens on TCP/UDP 53317 with no mapped window. Open
+  LocalSend, check its centered 875×600 window, then close it and confirm the
+  receiver still answers from the other computer. No reboot is required to
+  test the entry's command; the next login exercises session startup itself.
+- For the picker, save the current `startup-mode` values from both
+  `org.gtk.Settings.FileChooser` and `org.gtk.gtk4.Settings.FileChooser`.
+  Merge only the two settings with `dconf load / < examples/file-chooser.dconf`.
+  This preserves other chooser preferences, including sorting and hidden files.
+- Install the GTK portal drop-in, ensure `~/Downloads` exists, and run
+  `systemctl --user daemon-reload`. Restart
+  `xdg-desktop-portal-gtk.service` when no file dialog is open if its working
+  directory changed. Both chooser schemas must report `startup-mode='cwd'`;
+  the portal process must have `~/Downloads` as its working directory.
+  Open a fresh portal chooser without a requested folder to verify Downloads.
+  An application can still explicitly choose a different folder; non-portal
+  GTK dialogs start in that application's own working directory.
 
 ### Dictation shortcuts
 

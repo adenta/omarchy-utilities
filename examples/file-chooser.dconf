@@ -1,0 +1,8 @@
+# Source: https://github.com/adenta/omarchy-utilities
+# Merge with: dconf load / < examples/file-chooser.dconf
+# The GTK portal's working-directory override supplies Downloads.
+[org/gtk/settings/file-chooser]
+startup-mode='cwd'
+
+[org/gtk/gtk4/settings/file-chooser]
+startup-mode='cwd'
