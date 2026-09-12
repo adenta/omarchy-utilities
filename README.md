@@ -64,6 +64,19 @@ fi
 This is an optional personal terminal integration, not a modification of Codex
 or Codex Ops. Verify copy, paste, select-all, and Ctrl+C interruption.
 
+### Dictation shortcuts
+
+Grace uses Hyprland shortcuts without raw input-device access. Add
+`require("hypr.voxtype-shortcuts")` once to local `hyprland.lua`, and copy
+`examples/voxtype-compositor.conf` to
+`~/.config/systemd/user/voxtype-deepgram.service.d/shortcuts.conf`.
+Reload Hyprland, reload user systemd units, and enable/start
+`voxtype-deepgram.service`. Insert toggles recording; Escape cancels and also
+reaches the focused application. Shift+Insert remains available for pasting.
+XPS keeps its existing evdev hotkeys; do not load this optional module there
+unless intentionally switching methods. The module's source is copied to both
+machines, while the opt-in and service override are local integration settings.
+
 ## Checking a change
 
 Run the relevant existing panel tests:
