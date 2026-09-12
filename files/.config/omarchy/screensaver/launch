@@ -59,25 +59,30 @@ wait_for_screensaver_window() {
   done
 }
 
-for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+while IFS=$'\t' read -r m logical_height; do
+  # Match the artwork's proportions on the original 800-logical-pixel XPS
+  # display. Shorter desktops need a smaller font to retain breathing room.
+  font_size=$((18 * logical_height / 800))
+  ((font_size > 18)) && font_size=18
+  ((font_size < 8)) && font_size=8
   hypr_focus_monitor "$m"
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e "$renderer" "$artwork"
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -o "font.size=$font_size" -e "$renderer" "$artwork"
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --scrollback-limit=0 --scrollbar=never --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e "$renderer" "$artwork"
+    hypr_exec ghostty --class=org.omarchy.screensaver --scrollback-limit=0 --scrollbar=never --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size="$font_size" -e "$renderer" "$artwork"
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e "$renderer" "$artwork"
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" --font="JetBrainsMono Nerd Font:size=$font_size" -e "$renderer" "$artwork"
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e "$renderer" "$artwork"
+    hypr_exec kitty --class=org.omarchy.screensaver --override "font_size=$font_size" --override window_padding_width=0 -e "$renderer" "$artwork"
     ;;
   esac
 
   wait_for_screensaver_window
-done
+done < <(hyprctl monitors -j | jq -r '.[] | [.name, ((if (.transform // 0) % 2 == 1 then .width else .height end) / .scale | floor)] | @tsv')
 
 hypr_focus_monitor "$focused"

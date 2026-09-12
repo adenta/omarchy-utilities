@@ -33,7 +33,12 @@ function fixture(extra = {}) {
   stub('hyprctl', `printf '%s\\n' "$*" >> "$HOME/hypr.log"
 case $1 in
   activewindow) printf '{"class":"%s"}\\n' "\${TEST_FOCUS:-org.omarchy.screensaver}" ;;
-  monitors) echo '[{"name":"monitor-one"},{"name":"monitor-two"}]' ;;
+  monitors)
+    if [[ -n \${TEST_MONITORS:-} ]]; then
+      printf '%s\\n' "$TEST_MONITORS"
+    else
+      echo '[{"name":"monitor-one","width":2560,"height":1600,"scale":2},{"name":"monitor-two","width":3840,"height":2160,"scale":3}]'
+    fi ;;
 esac`);
   stub('pkill', 'printf "%s\\n" "$*" >> "$HOME/cleanup.log"');
   stub('pgrep', '[[ ${TEST_RUNNING:-0} == 1 ]]');
@@ -165,9 +170,24 @@ async function main() {
         for (const command of commands) {
           assert.ok(command.includes(`${f.config}/render ${f.art}/${names[1]}`), command);
         }
+        const fontKey = terminal.includes('foot') ? 'size=' : terminal.includes('ghostty') ? '--font-size=' :
+          terminal.includes('Alacritty') ? 'font.size=' : 'font_size=';
+        assert.ok(commands[0].includes(`${fontKey}18`), commands[0]);
+        assert.ok(commands[1].includes(`${fontKey}16`), commands[1]);
         assert.equal(f.readState(), names.slice(1).join('\n') + '\n');
       });
   }
+  await test('portrait and very small displays use bounded font sizes', {
+    TEST_MONITORS: JSON.stringify([
+      { name: 'portrait', width: 1080, height: 1920, scale: 1, transform: 1 },
+      { name: 'small', width: 480, height: 320, scale: 1 },
+    ]),
+  }, async f => {
+    assert.equal((await f.launch(['force']).done).code, 0);
+    const commands = fs.readFileSync(path.join(f.home, 'hypr.log'), 'utf8').split('\n').filter(s => s.includes('exec_cmd'));
+    assert.ok(commands[0].includes('size=18'), commands[0]);
+    assert.ok(commands[1].includes('size=8'), commands[1]);
+  });
   await test('--pick-only still selects without launching', {}, async f => {
     assert.equal((await f.launch(['--pick-only']).done).code, 0);
     assert.equal(f.readState(), names.slice(1).join('\n') + '\n');

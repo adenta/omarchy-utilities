@@ -51,6 +51,15 @@ consume selections. The animation engine is still the packaged `ttfx` binary;
 no packaged Omarchy files are modified. Compare this controller against the
 packaged script when reviewing future Omarchy updates.
 
+The launcher sizes the screensaver font for each monitor's logical height,
+using the original XPS display (800 logical pixels tall, 18-point font) as the
+reference. Shorter desktops use a proportionally smaller font, rounded down
+and bounded to 8–18 points, so the artwork keeps surrounding space. For example,
+Grace's 2160-pixel display at scale 3 uses 16 points; XPS's 1600-pixel display at
+scale 2 retains 18. Rotated monitors use their effective vertical dimension.
+This only affects screensaver terminals, keeping the full animation canvas and
+stock random effects; regular terminal fonts and desktop scaling stay local.
+
 The selector still prints the selected filename by default or its full path
 with `--path`. The launcher's `--pick-only` selects without opening a window.
 
