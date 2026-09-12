@@ -33,15 +33,28 @@ produce an error without resetting progress. Progress tracks selections, not
 confirmed display: a failed launch may consume a selection, and interruption
 between the two file replacements can leave the artwork ahead of the queue.
 
-`~/.local/bin/omarchy-pokemon-screensaver` chooses once per screensaver
-session, then delegates to the personal launcher and Omarchy's renderer. Omarchy
-therefore retains its stock animation, color, input, and shutdown behavior;
-the same Pokémon remains in place while that session cycles through effects.
+`~/.local/bin/omarchy-pokemon-screensaver` delegates to the personal launcher,
+which selects the first Pokémon after checking whether it can launch. Every
+monitor starts with the same artwork. The personal `screensaver/render` script
+plays three completed effects per Pokémon, then selects the next artwork.
+Monitors advance independently through the shared, locked queue. Each renderer
+uses the original artwork path, so another selection cannot replace its input.
+The three-effect counter resets on each launch; queue progress remains saved.
+
+The controller derives from the 48-line `bin/omarchy-screensaver` installed by
+Omarchy **4.0.3-1**, with its MIT notice in `licenses/Omarchy-MIT.txt` in the
+maintained repository. It retains the stock animation settings, initial terminal
+resize wait, cursor handling, and input/focus dismissal. Local additions are
+artwork rotation and waiting for each child PID to check successful completion.
+Rendering or selection failures stop the screensaver instead of continuing to
+consume selections. The animation engine is still the packaged `ttfx` binary;
+no packaged Omarchy files are modified. Compare this controller against the
+packaged script when reviewing future Omarchy updates.
 
 The selector still prints the selected filename by default or its full path
 with `--path`. The launcher's `--pick-only` selects without opening a window.
 
-The user-owned `andre.idle` clone calls this picker for automatic idle launches.
+The user-owned `andre.idle` clone calls this wrapper for automatic idle launches.
 The original `omarchy.idle` service remains untouched.
 
 To restore the stock idle service, run:

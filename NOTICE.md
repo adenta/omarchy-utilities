@@ -1,8 +1,8 @@
 # Origins and licenses
 
 - Omarchy-derived configuration, bar, clock, idle/background plugins, and
-  screensaver launcher originated from Omarchy 4.0.3 (some personal clones were
-  created on 4.0.2): https://github.com/basecamp/omarchy. Preserve the MIT notice
+  screensaver launcher/controller originated from Omarchy 4.0.3 (some personal
+  clones were created on 4.0.2): https://github.com/basecamp/omarchy. Preserve the MIT notice
   in `licenses/Omarchy-MIT.txt` with these components.
 - System Pulse derives from Fernando Menolli's omarchy-htop. Its existing MIT
   license and source notes remain beside the plugin.

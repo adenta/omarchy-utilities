@@ -26,6 +26,11 @@ case $terminal in
   ;;
 esac
 
+# Select only after the launch checks pass. Every monitor starts with this
+# immutable artwork path, then rotates independently in its own renderer.
+artwork=$("$HOME/.local/bin/omarchy-pokemon-select" --path) || exit 1
+renderer="$HOME/.config/omarchy/screensaver/render"
+
 hypr_focus_monitor() {
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
 }
@@ -59,16 +64,16 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e "$renderer" "$artwork"
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --scrollback-limit=0 --scrollbar=never --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
+    hypr_exec ghostty --class=org.omarchy.screensaver --scrollback-limit=0 --scrollbar=never --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e "$renderer" "$artwork"
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e "$renderer" "$artwork"
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e "$renderer" "$artwork"
     ;;
   esac
 

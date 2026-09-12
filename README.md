@@ -91,6 +91,7 @@ node files/.config/omarchy/plugins/andre.system-pulse/tests/run.js
 node files/.config/omarchy/plugins/andre.backups/tests/run.js
 node files/.config/omarchy/plugins/andre.credits/tests/run.js
 bash tests/backup-policy.sh
+node tests/pokemon-screensaver.js
 ```
 
 Use `omarchy plugin validate PATH` for changed plugins, `bash -n` for changed
