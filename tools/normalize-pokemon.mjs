@@ -54,12 +54,18 @@ for (const name of names) {
       positions.forEach(([dx, dy], bit) => {
         if (mask[(cy * 4 + dy) * width + cx * 2 + dx]) bits |= 1 << bit;
       });
-      // U+2800 is invisible but keeps ttfx from discarding the common canvas.
-      line += String.fromCodePoint(0x2800 + bits);
+      // Stock ttfx skips ordinary spaces, but animates empty Braille cells.
+      line += bits ? String.fromCodePoint(0x2800 + bits) : ' ';
     }
     result.push(line);
   }
-  generated.push([name, result.join('\n') + '\n']);
+  // Crop whole empty cells only: preserve the approved scale and dot patterns.
+  const top = result.findIndex(line => /[^ ]/.test(line));
+  const bottom = result.findLastIndex(line => /[^ ]/.test(line));
+  const occupied = result.slice(top, bottom + 1);
+  const left = Math.min(...occupied.filter(line => /[^ ]/.test(line)).map(line => line.search(/[^ ]/)));
+  const cropped = occupied.map(line => line.slice(left).trimEnd());
+  generated.push([name, cropped.join('\n') + '\n']);
 }
 // Validate the complete source set before replacing any generated files.
 for (const [name, text] of generated) {
@@ -70,4 +76,4 @@ for (const [name, text] of generated) {
     fs.writeFileSync(target, text);
   }
 }
-console.log(`${check ? 'Verified' : 'Generated'} ${names.length} silhouettes on ${columns}×${rows} Braille canvases`);
+console.log(`${check ? 'Verified' : 'Generated'} ${names.length} silhouettes fitted within ${columns}×${rows} cells, with ordinary-space gaps`);

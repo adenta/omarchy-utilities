@@ -10,7 +10,7 @@
 - Pokémon artwork derives from gunzf0x/PokeASCIILogin at revision
   `0f963e21132ee1de827643d18442b94020367050`. Its GPLv3 license and artwork manifest
   remain in `files/.local/share/omarchy-pokemon-screensaver/`. This license covers
-  the unscaled inputs in `sources/pokemon-ascii/` and the generated 70×22 Braille
+  the unscaled inputs in `sources/pokemon-ascii/` and the generated Braille
   silhouettes produced by `tools/normalize-pokemon.mjs`; the root license does
   not replace it. Pokémon names and characters belong to
   their respective rights holders; this project is unaffiliated fan customization.

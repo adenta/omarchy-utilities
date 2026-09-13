@@ -132,6 +132,7 @@ bash tests/backup-size.sh
 node tests/pokemon-screensaver.js
 node tools/normalize-pokemon.mjs --check
 node tests/pokemon-centering.js
+node tests/pokemon-effects.js
 ```
 
 Use `omarchy plugin validate PATH` for changed plugins, `bash -n` for changed

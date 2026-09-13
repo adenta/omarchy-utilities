@@ -1,8 +1,9 @@
 # Omarchy Pokémon ASCII screensaver artwork
 
 This directory contains normalized Pokédex entries 001–251 from PokeASCIILogin.
-The original filled silhouettes are proportionally enlarged and centered on a
-shared **70-column × 22-row** Braille canvas for Omarchy's `ttfx` screensaver.
+The original filled silhouettes are proportionally enlarged to fit within
+**70 columns × 22 rows** for Omarchy's `ttfx` screensaver. Empty outer borders
+are cropped; gaps inside each silhouette are ordinary spaces.
 
 - Source: https://github.com/gunzf0x/PokeASCIILogin
 - Source revision: `0f963e21132ee1de827643d18442b94020367050`
@@ -23,9 +24,12 @@ the visible dots, fits the silhouette proportionally inside 140×88 dots using
 nearest-neighbor sampling, centers it, and re-encodes it as Braille. Wide
 silhouettes use more horizontal space; already tall silhouettes stay similar
 in size. The target matches the approved normalization previews. No new art,
-interior shading, or grayscale is introduced. Empty cells use invisible
-U+2800 Braille blanks so `ttfx` retains the common canvas. Keep this padding;
-stripping it changes alignment and the bounds used by animation effects.
+interior shading, or grayscale is introduced. Empty cells become ordinary
+spaces, and completely empty outer cell borders are removed. Cropping preserves
+every visible Braille character and the approved silhouette size. Do not use
+U+2800 Braille blanks: stock `ttfx` treats them as artwork targets, causing
+Laser Etch and Decrypt to animate invisible gaps and padding. The terminal
+centers the cropped artwork; text file dimensions vary by silhouette.
 
 ## Omarchy integration
 
@@ -86,9 +90,16 @@ leftover pixels around the grid with `--window-padding-balance=true`. The font
 size policy is unchanged. Recheck this workaround against future `ttfx`
 versions; remove it once the engine's default centered canvas passes the same
 margin checks. `node tests/pokemon-centering.js` checks all 251 artworks using
-the installed `ttfx` binary, including complete padding, visible dot margins,
-and odd/even terminal dimensions. The fixed artwork requires at least 70
-columns and 22 rows; verify the font setting before using a narrower display.
+the installed `ttfx` binary, including complete visible artwork, ordinary-space
+gaps, and odd/even terminal dimensions. Stock horizontal anchoring can leave a
+two-column margin difference for odd-sized text on an odd-width terminal.
+Allow at least 70 columns and 22 rows to fit the entire artwork collection;
+verify the font setting before using a narrower display.
+
+`node tests/pokemon-effects.js` checks every frame of Laser Etch and Decrypt
+on Zapdos, Aerodactyl, Sandshrew, and Caterpie. Laser targets and decrypted
+characters must fall on visible artwork; surrounding laser beams and sparks
+can still travel across the screen.
 
 The selector still prints the selected filename by default or its full path
 with `--path`. The launcher's `--pick-only` selects without opening a window.
