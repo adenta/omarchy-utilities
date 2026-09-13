@@ -29,7 +29,7 @@ function fixture(extra = {}) {
   function stub(name, body) {
     fs.writeFileSync(path.join(bin, name), '#!/bin/bash\n' + body + '\n', { mode: 0o755 });
   }
-  stub('stty', 'echo "60 160"');
+  stub('stty', 'echo "${TEST_ROWS:-60} 160"');
   stub('hyprctl', `printf '%s\\n' "$*" >> "$HOME/hypr.log"
 case $1 in
   activewindow) printf '{"class":"%s"}\\n' "\${TEST_FOCUS:-org.omarchy.screensaver}" ;;
@@ -49,6 +49,7 @@ esac`);
   stub('omarchy-notification-send', 'exit 0');
   stub('socat', `printf 'openwindow>>one,org.omarchy.screensaver,title\\nopenwindow>>two,org.omarchy.screensaver,title\\n'`);
   stub('ttfx', `printf '%s\\n' "$2" >> "$HOME/effects-$TEST_ID.log"
+printf '%s\\n' "$*" >> "$HOME/arguments-$TEST_ID.log"
 count=$(wc -l < "$HOME/effects-$TEST_ID.log")
 # Simulate another monitor replacing the shared branding file.
 mkdir -p "$HOME/.config/omarchy/branding"
@@ -103,6 +104,14 @@ async function waitForEffect(f, count = 1) {
 }
 
 async function main() {
+  for (const [rows, height] of [[27, 28], [28, 28]]) {
+    await test(`terminal with ${rows} rows uses an even-height canvas`,
+      { TEST_ROWS: String(rows), TEST_FAIL_AT: '1' }, async f => {
+        assert.equal((await f.render().done).code, 23);
+        const args = fs.readFileSync(path.join(f.home, 'arguments-one.log'), 'utf8');
+        assert.match(args, new RegExp(`--canvas-height ${height} `));
+      });
+  }
   await test('three completed effects per artwork; immutable input', {}, async f => {
     const result = await f.render().done;
     assert.equal(result.code, 23, result.errors);
@@ -174,6 +183,9 @@ async function main() {
           terminal.includes('Alacritty') ? 'font.size=' : 'font_size=';
         assert.ok(commands[0].includes(`${fontKey}18`), commands[0]);
         assert.ok(commands[1].includes(`${fontKey}16`), commands[1]);
+        if (terminal.includes('ghostty')) {
+          for (const command of commands) assert.ok(command.includes('--window-padding-balance=true'), command);
+        }
         assert.equal(f.readState(), names.slice(1).join('\n') + '\n');
       });
   }

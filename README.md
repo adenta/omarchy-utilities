@@ -130,6 +130,8 @@ node files/.config/omarchy/plugins/andre.credits/tests/run.js
 bash tests/backup-policy.sh
 bash tests/backup-size.sh
 node tests/pokemon-screensaver.js
+node tools/normalize-pokemon.mjs --check
+node tests/pokemon-centering.js
 ```
 
 Use `omarchy plugin validate PATH` for changed plugins, `bash -n` for changed
