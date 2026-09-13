@@ -62,7 +62,7 @@ The three-effect counter resets on each launch; queue progress remains saved.
 
 The controller derives from the 48-line `bin/omarchy-screensaver` installed by
 Omarchy **4.0.3-1**, with its MIT notice in `licenses/Omarchy-MIT.txt` in the
-maintained repository. It retains the stock animation settings, initial terminal
+maintained repository. It retains the initial terminal
 resize wait, cursor handling, and input/focus dismissal. Local additions are
 artwork rotation and waiting for each child PID to check successful completion.
 Rendering or selection failures stop the screensaver instead of continuing to
@@ -70,36 +70,40 @@ consume selections. The animation engine is still the packaged `ttfx` binary;
 no packaged Omarchy files are modified. Compare this controller against the
 packaged script when reviewing future Omarchy updates.
 
-The launcher sizes the screensaver font for each monitor's logical height,
-using the original XPS display (800 logical pixels tall, 18-point font) as the
-reference. Shorter desktops use a proportionally smaller font, rounded down
-and bounded to 8–18 points, so the artwork keeps surrounding space. For example,
-Grace's 2160-pixel display at scale 3 uses 16 points; XPS's 1600-pixel display at
-scale 2 retains 18. Rotated monitors use their effective vertical dimension.
-This only affects screensaver terminals, keeping the full animation canvas and
-stock random effects; regular terminal fonts and desktop scaling stay local.
+The launcher sizes the screensaver font from each monitor's logical height:
+`logical_height * 13 / 600` points, rounded to the nearest tenth and bounded to
+8–18 points. Rotated monitors use their effective vertical dimension. This
+calibration gives XPS/Ghostty (800 logical pixels tall) a 17.3-point font and a
+91×26 grid, and Grace/Foot (720 logical pixels tall) a 15.6-point font and a
+103×26 grid. Both have 26 genuinely visible rows; the approved artwork heights
+are even, so stock TTFX centers them vertically within those grids. Font
+metrics vary across terminals and displays; verify actual dimensions after
+changing fonts, terminals, display scale, or resolution. Regular terminal
+fonts and desktop scaling are not changed.
 
-Vertical centering compensates for the packaged `ttfx` 0.3.2 anchor calculation:
-before each effect, the controller rounds the measured terminal row count up
-to an even canvas height. On an odd-height terminal, the engine clips the one
-extra bottom canvas row outside the viewport. Every visible terminal row stays
-available to animations. Settled artwork has equal top/bottom row margins when
-its height and the terminal height have matching parity, and a one-row margin
-difference otherwise (the unavoidable half-row rounding). Ghostty also balances
-leftover pixels around the grid with `--window-padding-balance=true`. The font
-size policy is unchanged. Recheck this workaround against future `ttfx`
-versions; remove it once the engine's default centered canvas passes the same
-margin checks. `node tests/pokemon-centering.js` checks all 251 artworks using
-the installed `ttfx` binary, including complete visible artwork, ordinary-space
-gaps, and odd/even terminal dimensions. Stock horizontal anchoring can leave a
-two-column margin difference for odd-sized text on an odd-width terminal.
+Ghostty and Foot launch fullscreen and balance leftover pixels around the text
+grid. The renderer uses `--canvas-width 0 --canvas-height 0` and clears inherited
+`COLUMNS`/`LINES` overrides, so TTFX uses the real viewport and can adapt to a
+resize. Never round the canvas height up: that hides the bottom row from
+effects such as Orbitting Volley and Laser Etch. On an odd-height viewport,
+accept stock TTFX's upward rounding rather than cropping an effect row.
+Rings is excluded with stock `--exclude-effects rings`; all other random
+effects and their defaults remain available.
+
+`node tests/pokemon-centering.js` checks all 251 artworks using the installed
+`ttfx` binary, including complete visible artwork, ordinary-space gaps, the
+two deployed grids, and odd/even terminal dimensions. Stock horizontal
+anchoring can leave a two-column margin difference for odd-sized text on an
+odd-width terminal.
 Allow at least 70 columns and 22 rows to fit the entire artwork collection;
 verify the font setting before using a narrower display.
 
-`node tests/pokemon-effects.js` checks every frame of Laser Etch and Decrypt
-on Zapdos, Aerodactyl, Sandshrew, and Caterpie. Laser targets and decrypted
+`node tests/pokemon-effects.js` checks every frame of Laser Etch, Decrypt, and
+Orbitting Volley on Zapdos, Aerodactyl, Sandshrew, and Caterpie at both deployed
+grid sizes, plus an odd-height bottom-edge regression. Laser targets and decrypted
 characters must fall on visible artwork; surrounding laser beams and sparks
-can still travel across the screen.
+can still travel across the screen. The bottom Orbitting Volley launcher must
+remain visible on the last row.
 
 The selector still prints the selected filename by default or its full path
 with `--path`. The launcher's `--pick-only` selects without opening a window.

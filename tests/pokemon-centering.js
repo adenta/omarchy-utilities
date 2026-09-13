@@ -8,7 +8,7 @@ const { spawnSync } = require('node:child_process');
 const artDir = path.join(__dirname, '../files/.local/share/omarchy-pokemon-screensaver/art');
 const artworks = fs.readdirSync(artDir).filter(name => name.endsWith('.txt'));
 assert.equal(artworks.length, 251);
-const sizes = [[70, 22], [71, 23], [88, 24], [88, 25], [101, 25], [96, 26], [97, 27], [104, 28], [105, 29]];
+const sizes = [[70, 22], [71, 23], [88, 24], [88, 25], [101, 25], [91, 26], [103, 26], [96, 26], [97, 27], [104, 28], [105, 29]];
 let checks = 0;
 for (const artwork of artworks) {
   const text = fs.readFileSync(path.join(artDir, artwork), 'utf8');
@@ -26,7 +26,7 @@ for (const artwork of artworks) {
   for (const [columns, rows] of sizes) {
     const result = spawnSync('ttfx', [
       '-i', path.join(artDir, artwork), '--frame-rate', '0',
-      '--canvas-width', '0', '--canvas-height', String(rows + rows % 2),
+      '--canvas-width', '0', '--canvas-height', '0',
       '--reuse-canvas', '--anchor-canvas', 'c', '--anchor-text', 'c',
       '--no-color', '--no-eol', '--no-restore-cursor',
       'colorshift', '--cycles', '1', '--gradient-stops', 'ffffff',

@@ -8,14 +8,15 @@ const artDir = path.join(__dirname, '../files/.local/share/omarchy-pokemon-scree
 const previewDir = process.env.POKEMON_PREVIEW_DIR;
 if (previewDir) fs.mkdirSync(previewDir, { recursive: true });
 const samples = ['145-zapdos', '142-aerodactyl', '027-sandshrew', '010-caterpie'];
-const rows = 25, columns = 88;
+const sizes = [[91, 26], [103, 26]];
 let totalFrames = 0;
-for (const name of samples) for (const effect of ['laseretch', 'decrypt']) {
+for (const [columns, rows] of sizes) for (const name of samples) for (const effect of ['laseretch', 'decrypt', 'orbittingvolley']) {
   const result = spawnSync('ttfx', [
     '-i', path.join(artDir, name + '.txt'), '--frame-rate', '0',
-    '--canvas-width', '0', '--canvas-height', '26', '--reuse-canvas',
+    '--canvas-width', '0', '--canvas-height', '0', '--reuse-canvas',
     '--anchor-canvas', 'c', '--anchor-text', 'c', '--no-color',
     '--no-eol', '--no-restore-cursor', '--seed', '42', effect,
+    ...(effect === 'orbittingvolley' ? ['--bottom-launcher-symbol', 'B'] : []),
   ], { env: { ...process.env, LINES: String(rows), COLUMNS: String(columns) }, encoding: 'utf8', timeout: 30000, maxBuffer: 128 * 1024 * 1024 });
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stderr);
@@ -35,6 +36,9 @@ for (const name of samples) for (const effect of ['laseretch', 'decrypt']) {
           checkedTargets++;
         }
       }
+    } else if (effect === 'orbittingvolley') {
+      assert.ok(lines.slice(0, -1).every(line => !line.includes('B')), `${name}: bottom launcher must stay on the last visible row`);
+      if (lines.at(-1).includes('B')) checkedTargets++;
     } else {
       // Laser Etch draws '/' diagonally above/right of its '*' target. Sparks
       // use '.', ',' and '*', so the beam gives an unambiguous target position.
@@ -52,9 +56,25 @@ for (const name of samples) for (const effect of ['laseretch', 'decrypt']) {
   if (previewDir) {
     const count = Math.min(100, frames.length);
     const sampled = Array.from({ length: count }, (_, i) => frames[Math.round(i * (frames.length - 1) / (count - 1))]);
-    fs.writeFileSync(path.join(previewDir, `${name}-${effect}.json`), JSON.stringify({ name, effect, columns, rows, frames: sampled }));
+    fs.writeFileSync(path.join(previewDir, `${name}-${effect}-${columns}x${rows}.json`), JSON.stringify({ name, effect, columns, rows, frames: sampled }));
   }
   totalFrames += frames.length;
-  console.log(`PASS ${name} ${effect}: ${frames.length} frames, ${checkedTargets} visible targets checked`);
+  console.log(`PASS ${name} ${effect} ${columns}×${rows}: ${frames.length} frames, ${checkedTargets} visible targets checked`);
 }
-console.log(`PASS ${totalFrames} animation frames across eight Pokémon/effect combinations`);
+// An odd terminal must also retain its bottom edge, even if stock centering
+// cannot give equal margins. This reproduces the extra-row regression.
+for (const canvasHeight of ['0', '26']) {
+  const rows = 25, columns = 101;
+  const result = spawnSync('ttfx', [
+    '-i', path.join(artDir, '010-caterpie.txt'), '--frame-rate', '0',
+    '--canvas-width', '0', '--canvas-height', canvasHeight, '--reuse-canvas',
+    '--anchor-canvas', 'c', '--anchor-text', 'c', '--no-color',
+    '--no-eol', '--no-restore-cursor', 'orbittingvolley', '--bottom-launcher-symbol', 'B',
+  ], { env: { ...process.env, LINES: String(rows), COLUMNS: String(columns) }, encoding: 'utf8', timeout: 30000, maxBuffer: 128 * 1024 * 1024 });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+  const frames = result.stdout.split(`\x1b8\x1b7\x1b[${rows}A`).slice(1);
+  const bottomVisible = frames.some(frame => frame.split('\n')[rows - 1]?.includes('B'));
+  assert.equal(bottomVisible, canvasHeight === '0', `25-row terminal, canvas height ${canvasHeight}: bottom-edge regression control`);
+}
+console.log(`PASS ${totalFrames} animation frames across ${sizes.length * samples.length * 3} combinations, plus the odd-height bottom-edge regression`);

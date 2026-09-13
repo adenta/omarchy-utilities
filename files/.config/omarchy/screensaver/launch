@@ -60,11 +60,13 @@ wait_for_screensaver_window() {
 }
 
 while IFS=$'\t' read -r m logical_height; do
-  # Match the artwork's proportions on the original 800-logical-pixel XPS
-  # display. Shorter desktops need a smaller font to retain breathing room.
-  font_size=$((18 * logical_height / 800))
-  ((font_size > 18)) && font_size=18
-  ((font_size < 8)) && font_size=8
+  # Calibrated to 26 real rows on XPS/Ghostty (800 logical pixels, 17.3pt)
+  # and Grace/Foot (720 logical pixels, 15.6pt). Keep tenths of a point so
+  # integer font rounding does not force a 25-row viewport. Bound other sizes.
+  font_tenths=$(((13 * logical_height + 30) / 60))
+  ((font_tenths > 180)) && font_tenths=180
+  ((font_tenths < 80)) && font_tenths=80
+  printf -v font_size '%d.%d' "$((font_tenths / 10))" "$((font_tenths % 10))"
   hypr_focus_monitor "$m"
 
   case $terminal in
@@ -72,10 +74,10 @@ while IFS=$'\t' read -r m logical_height; do
     hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -o "font.size=$font_size" -e "$renderer" "$artwork"
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --scrollback-limit=0 --scrollbar=never --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --window-padding-balance=true --font-size="$font_size" -e "$renderer" "$artwork"
+    hypr_exec ghostty --class=org.omarchy.screensaver --fullscreen=true --scrollback-limit=0 --scrollbar=never --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --window-padding-balance=true --window-inherit-font-size=false --font-size="$font_size" -e "$renderer" "$artwork"
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" --font="JetBrainsMono Nerd Font:size=$font_size" -e "$renderer" "$artwork"
+    hypr_exec foot --fullscreen --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" --override='pad=0x0 center' --font="JetBrainsMono Nerd Font:size=$font_size" -e "$renderer" "$artwork"
     ;;
   *kitty*)
     hypr_exec kitty --class=org.omarchy.screensaver --override "font_size=$font_size" --override window_padding_width=0 -e "$renderer" "$artwork"

@@ -50,6 +50,7 @@ esac`);
   stub('socat', `printf 'openwindow>>one,org.omarchy.screensaver,title\\nopenwindow>>two,org.omarchy.screensaver,title\\n'`);
   stub('ttfx', `printf '%s\\n' "$2" >> "$HOME/effects-$TEST_ID.log"
 printf '%s\\n' "$*" >> "$HOME/arguments-$TEST_ID.log"
+printf '%s %s\\n' "\${COLUMNS-unset}" "\${LINES-unset}" >> "$HOME/dimensions-$TEST_ID.log"
 count=$(wc -l < "$HOME/effects-$TEST_ID.log")
 # Simulate another monitor replacing the shared branding file.
 mkdir -p "$HOME/.config/omarchy/branding"
@@ -104,12 +105,14 @@ async function waitForEffect(f, count = 1) {
 }
 
 async function main() {
-  for (const [rows, height] of [[27, 28], [28, 28]]) {
-    await test(`terminal with ${rows} rows uses an even-height canvas`,
-      { TEST_ROWS: String(rows), TEST_FAIL_AT: '1' }, async f => {
+  for (const rows of [25, 26, 27, 28]) {
+    await test(`terminal with ${rows} rows uses its real canvas and excludes Rings`,
+      { TEST_ROWS: String(rows), TEST_FAIL_AT: '1', COLUMNS: '7', LINES: '9' }, async f => {
         assert.equal((await f.render().done).code, 23);
         const args = fs.readFileSync(path.join(f.home, 'arguments-one.log'), 'utf8');
-        assert.match(args, new RegExp(`--canvas-height ${height} `));
+        assert.match(args, /--canvas-width 0 --canvas-height 0 /);
+        assert.match(args, /--random-effect --exclude-effects rings /);
+        assert.equal(fs.readFileSync(path.join(f.home, 'dimensions-one.log'), 'utf8'), 'unset unset\n');
       });
   }
   await test('three completed effects per artwork; immutable input', {}, async f => {
@@ -181,10 +184,18 @@ async function main() {
         }
         const fontKey = terminal.includes('foot') ? 'size=' : terminal.includes('ghostty') ? '--font-size=' :
           terminal.includes('Alacritty') ? 'font.size=' : 'font_size=';
-        assert.ok(commands[0].includes(`${fontKey}18`), commands[0]);
-        assert.ok(commands[1].includes(`${fontKey}16`), commands[1]);
+        assert.ok(commands[0].includes(`${fontKey}17.3`), commands[0]);
+        assert.ok(commands[1].includes(`${fontKey}15.6`), commands[1]);
         if (terminal.includes('ghostty')) {
           for (const command of commands) assert.ok(command.includes('--window-padding-balance=true'), command);
+          for (const command of commands) assert.ok(command.includes('--window-inherit-font-size=false'), command);
+          for (const command of commands) assert.ok(command.includes('--fullscreen=true'), command);
+        }
+        if (terminal.includes('foot')) {
+          for (const command of commands) {
+            assert.ok(command.includes('--override=pad=0x0\\ center'), command);
+            assert.ok(command.includes('--fullscreen'), command);
+          }
         }
         assert.equal(f.readState(), names.slice(1).join('\n') + '\n');
       });
