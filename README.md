@@ -43,7 +43,8 @@ directly over existing configuration.
 - The shared rules place Codex on workspace 1, open Files centered at 875×600,
   always float LocalSend at 875×600, and float a new Chromium window at that size
   only when another mapped, visible window occupies its workspace. Empty
-  workspaces retain Chromium's normal tiling. Caps Lock works normally;
+  workspaces retain Chromium's normal tiling. OpenBubbles Dev floats at its
+  saved window size. Caps Lock works normally;
   Super+Ctrl+Space opens emoji, Alt+Shift+4 captures a screenshot, and Super+A
   forwards select-all.
 - To start Codex at login, add `o.launch_on_start("chatgpt")` to local autostart

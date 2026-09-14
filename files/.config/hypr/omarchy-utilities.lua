@@ -14,6 +14,8 @@ o.bind("SUPER + A", "Universal select all", function()
 end)
 
 o.window("^chatgpt$", { workspace = "1" })
+-- Let the app restore its saved size instead of being tiled.
+o.window("^app[.]openbubbles[.]Dev$", { float = true })
 o.window("^org[.]gnome[.]Nautilus$", {
   float = true, center = true, size = { 875, 600 },
 })
