@@ -3,7 +3,7 @@
 # Derived from Omarchy 4.0.3-1 bin/omarchy-screensaver (48 lines).
 # MIT, Copyright (c) David Heinemeier Hansson; see licenses/Omarchy-MIT.txt.
 # Local changes: immutable artwork input, three completed effects per Pokémon,
-# viewport-sized canvas, effect exclusion, and child-PID waiting/error cleanup.
+# viewport-sized canvas, entrance selection, no adjacent repeats, and child cleanup.
 # The installed ttfx remains the renderer.
 
 artwork=${1:?Usage: render ARTWORK_PATH}
@@ -43,12 +43,35 @@ wait_for_terminal_resize() {
 wait_for_terminal_resize
 
 completed=0
+previous_effect=""
+# Audited against ttfx 0.3.2 with Pokémon artwork. These 26 effects start
+# without the recognizable picture; some use particles rather than darkness.
+entrance_effects=(
+  beams binarypath blackhole bouncyballs bubbles decrypt expand fireworks
+  laseretch matrix middleout orbittingvolley overflow pour print rain
+  randomsequence scattered slice slide spray swarm sweep synthgrid waves wipe
+)
+# These start with the picture already visible, possibly dimmed or distorted.
+# Rings remains excluded from every cycle.
+visible_effects=(
+  burn colorshift crumble errorcorrect highlight smoke spotlights thunderstorm
+  unstable vhstape
+)
+
 while true; do
+  effects=("${entrance_effects[@]}")
+  (( completed > 0 )) && effects+=("${visible_effects[@]}")
+  candidates=()
+  for candidate in "${effects[@]}"; do
+    [[ $candidate == "$previous_effect" ]] || candidates+=("$candidate")
+  done
+  effect=$(shuf -n 1 -e "${candidates[@]}") || exit_screensaver 1
+
   # Zero dimensions use the real terminal, including its bottom effect row.
   # Ignore inherited size overrides; never enlarge the canvas for centering.
   env -u COLUMNS -u LINES ttfx -i "$artwork" \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c \
-    --random-effect --exclude-effects rings --no-eol --no-restore-cursor &
+    --no-eol --no-restore-cursor "$effect" &
   effect_pid=$!
 
   while kill -0 "$effect_pid" 2>/dev/null; do
@@ -60,6 +83,8 @@ while true; do
   status=$?
   effect_pid=""
   (( status == 0 )) || exit_screensaver "$status"
+  # Keep this across Pokémon changes, so a group boundary cannot repeat it.
+  previous_effect=$effect
 
   ((completed += 1))
   if (( completed == 3 )); then

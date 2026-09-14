@@ -48,6 +48,18 @@ esac`);
   stub('xdg-terminal-exec', 'echo "${TEST_TERMINAL:-foot.desktop}"');
   stub('omarchy-notification-send', 'exit 0');
   stub('socat', `printf 'openwindow>>one,org.omarchy.screensaver,title\\nopenwindow>>two,org.omarchy.screensaver,title\\n'`);
+  stub('shuf', `# Artwork shuffling still uses the real command.
+if [[ $1 != -n || $2 != 1 || $3 != -e ]]; then exec /usr/bin/shuf "$@"; fi
+shift 3
+printf '%s\\n' "$*" >> "$HOME/pools-$TEST_ID.log"
+count=$(wc -l < "$HOME/pools-$TEST_ID.log")
+((count == \${TEST_SHUFFLE_FAIL_AT:-0})) && exit 24
+IFS=, read -r -a choices <<< "\${TEST_EFFECT_CHOICES:-}"
+wanted=\${choices[count-1]:-beams}
+for candidate in "$@"; do
+  if [[ $candidate == "$wanted" ]]; then printf '%s\\n' "$candidate"; exit 0; fi
+done
+printf '%s\\n' "$1"`);
   stub('ttfx', `printf '%s\\n' "$2" >> "$HOME/effects-$TEST_ID.log"
 printf '%s\\n' "$*" >> "$HOME/arguments-$TEST_ID.log"
 printf '%s %s\\n' "\${COLUMNS-unset}" "\${LINES-unset}" >> "$HOME/dimensions-$TEST_ID.log"
@@ -111,7 +123,9 @@ async function main() {
         assert.equal((await f.render().done).code, 23);
         const args = fs.readFileSync(path.join(f.home, 'arguments-one.log'), 'utf8');
         assert.match(args, /--canvas-width 0 --canvas-height 0 /);
-        assert.match(args, /--random-effect --exclude-effects rings /);
+        assert.match(args, /--no-eol --no-restore-cursor beams\n/);
+        assert.doesNotMatch(args, /--random-effect/);
+        assert.ok(!fs.readFileSync(path.join(f.home, 'pools-one.log'), 'utf8').split(/\s+/).includes('rings'));
         assert.equal(fs.readFileSync(path.join(f.home, 'dimensions-one.log'), 'utf8'), 'unset unset\n');
       });
   }
@@ -122,6 +136,32 @@ async function main() {
       [names[0], names[0], names[0], names[1], names[1], names[1], names[2]]);
     assert.equal(f.effects().length, 8);
     assert.equal(f.readState(), `${names[2]}\n${names[3]}\n`);
+    assert.match(fs.readFileSync(path.join(f.home, 'hypr.log'), 'utf8'), /invisible = false/);
+  });
+  await test('entrances for each group; visible effects within groups; no adjacent repeats', {
+    TEST_EFFECT_CHOICES: 'beams,burn,beams,beams,highlight,highlight,beams,colorshift',
+  }, async f => {
+    assert.equal((await f.render().done).code, 23);
+    const selected = fs.readFileSync(path.join(f.home, 'arguments-one.log'), 'utf8')
+      .trim().split('\n').map(line => line.split(' ').at(-1));
+    assert.deepEqual(selected, ['beams', 'burn', 'beams', 'binarypath', 'highlight', 'beams', 'binarypath', 'colorshift']);
+    const pools = fs.readFileSync(path.join(f.home, 'pools-one.log'), 'utf8').trim().split('\n').map(line => line.split(' '));
+    const visible = ['burn', 'colorshift', 'crumble', 'errorcorrect', 'highlight', 'smoke', 'spotlights', 'thunderstorm', 'unstable', 'vhstape'];
+    assert.deepEqual(pools.map(pool => pool.length), [26, 35, 35, 25, 35, 35, 25, 35]);
+    for (const [index, pool] of pools.entries()) {
+      assert.equal(new Set(pool).size, pool.length, 'no duplicate candidates');
+      assert.ok(!pool.includes('rings'));
+      assert.ok(!pool.includes(selected[index - 1]), 'exclude previous effect, including group boundaries');
+      for (const effect of visible) {
+        assert.equal(pool.includes(effect), index % 3 !== 0 && effect !== selected[index - 1], `${effect} eligibility at cycle ${index + 1}`);
+      }
+    }
+  });
+  await test('effect selection failure stops without advancing artwork', { TEST_SHUFFLE_FAIL_AT: '2' }, async f => {
+    const before = f.readState();
+    assert.equal((await f.render().done).code, 1);
+    assert.equal(f.effects().length, 1);
+    assert.equal(f.readState(), before);
     assert.match(fs.readFileSync(path.join(f.home, 'hypr.log'), 'utf8'), /invisible = false/);
   });
   await test('failed third effect does not advance', { TEST_FAIL_AT: '3' }, async f => {
