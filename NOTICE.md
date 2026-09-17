@@ -8,6 +8,9 @@
   widget captured on 2026-09-17; its source fingerprint is retained in
   `andre.agents/upstream.sha256`, and the Omarchy MIT notice is also included
   beside the plugin.
+- The lock-screen customization derives from installed Omarchy 4.0.4-1, captured
+  on 2026-09-17. Its reviewed baseline is `andre.lock/upstream.sha256`; the
+  Omarchy MIT notice is included beside the plugin.
 - System Pulse derives from Fernando Menolli's omarchy-htop. Its existing MIT
   license and source notes remain beside the plugin.
 - The Backups and Credits panels retain their existing MIT license files.

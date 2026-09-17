@@ -1,0 +1,13 @@
+#!/bin/bash
+# Compare the installed stock widget with the explicitly reviewed baseline.
+set -euo pipefail
+source_dir=${1:-/usr/share/omarchy/shell/plugins/lock}
+baseline=${2:-$(dirname "$0")/upstream.sha256}
+[[ -d $source_dir && -f $baseline ]] || exit 1
+current=$(
+  cd "$source_dir"
+  find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d ' ' -f 1
+)
+expected=$(cat "$baseline")
+[[ $expected =~ ^[0-9a-f]{64}$ ]] || exit 1
+if [[ $current == "$expected" ]]; then echo current; else echo changed; fi

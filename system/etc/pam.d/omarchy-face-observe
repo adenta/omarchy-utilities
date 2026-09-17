@@ -1,0 +1,8 @@
+#%PAM-1.0
+# Observation-only consumer: PAM success is telemetry, never an unlock signal.
+# No real authentication service may include this file.
+auth      sufficient pam_facelock.so
+auth required pam_deny.so
+account requisite pam_deny.so
+password requisite pam_deny.so
+session requisite pam_deny.so

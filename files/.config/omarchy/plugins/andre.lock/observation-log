@@ -1,0 +1,27 @@
+#!/bin/bash
+# Local, bounded telemetry only. Never reads credentials or backend audit data.
+set -euo pipefail
+umask 077
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-face-observe
+[[ ! -L $state_dir ]] || exit 1
+mkdir -p -- "$state_dir"
+chmod 700 "$state_dir"
+for path in "$state_dir/events.jsonl" "$state_dir/events.jsonl.1" "$state_dir/log.lock"; do
+  [[ ! -L $path && ( ! -e $path || -f $path ) ]] || exit 1
+done
+exec 9>"$state_dir/log.lock"
+flock -w 1 9
+log=$state_dir/events.jsonl
+case ${1:-} in
+  append)
+    entry=$(jq -ce '{timestamp,attempt,outcome,duration_ms} | select((.timestamp|type)=="string" and (.timestamp|length)<=40 and (.attempt|type)=="number" and (.duration_ms|type)=="number" and .duration_ms>=0)' <<<"${2:?}")
+    # Validate outcomes separately; no backend messages or supplied paths are accepted.
+    jq -e '.outcome as $o | ["accepted","rejected","timeout","unavailable","cancelled"] | index($o) != null' <<<"$entry" >/dev/null
+    if [[ -f $log ]] && (( $(stat -c %s "$log") + ${#entry} + 1 > 1048576 )); then mv -f -- "$log" "$log.1"; fi
+    printf '%s\n' "$entry" >> "$log"
+    ;;
+  read)
+    if [[ -f $log ]]; then tail -n 10 -- "$log" | jq -cs 'map({timestamp,attempt,outcome,duration_ms}) | reverse'; else echo '[]'; fi
+    ;;
+  *) exit 2 ;;
+esac
