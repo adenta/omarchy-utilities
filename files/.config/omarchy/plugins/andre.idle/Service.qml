@@ -329,6 +329,22 @@ Item {
     onFileChanged: root.refreshStayAwakeState()
   }
 
+  // Independent maintenance check; never gate idle, lock, or wake on it.
+  Timer {
+    interval: 5000
+    running: true
+    repeat: false
+    onTriggered: upstreamCheck.running = true
+  }
+
+  Process {
+    id: upstreamCheck
+    command: ["bash", Qt.resolvedUrl("check-upstream").toString().replace("file://", ""), "--notify"]
+    onExited: function(code, status) {
+      if (code !== 0 || status !== 0) console.warn("omarchy idle: upstream check/notification process failed", code, status)
+    }
+  }
+
   Component.onCompleted: {
     logEvent("service-ready")
     refreshStayAwakeState()
