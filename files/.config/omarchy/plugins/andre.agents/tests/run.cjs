@@ -7,6 +7,15 @@ const {spawnSync,execFileSync} = require('node:child_process');
 const plugin = path.resolve(__dirname,'..');
 const ctx = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(plugin,'Pace.js'),'utf8'),ctx);
+vm.runInContext(fs.readFileSync(path.join(plugin,'Upstream.js'),'utf8'),ctx);
+assert.equal(ctx.classify(0,true,'current\n'),'current');
+assert.equal(ctx.classify(0,true,'changed'),'changed');
+for (const output of ['current','changed','','unexpected']) {
+ assert.equal(ctx.classify(1,true,output),'unknown');
+ assert.equal(ctx.classify(0,false,output),'unknown');
+}
+for (const output of ['', 'unexpected', 'current\nchanged']) assert.equal(ctx.classify(0,true,output),'unknown');
+assert.equal(ctx.classify(0,true,'current'),'current');
 const now = Date.parse('2026-09-17T12:00:00Z');
 const day = 86400000;
 const reset = new Date(now+5.125*day).toISOString();

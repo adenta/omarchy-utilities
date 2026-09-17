@@ -10,7 +10,9 @@ the installed stock widget differs from the reviewed baseline.
 `Pace.js` owns the arithmetic; `Panel.qml` renders it. Existing refresh behavior
 is retained (30-second countdown while open; usage refresh on opening).
 `check-upstream` compares the sorted stock file names and SHA-256 hashes with
-`upstream.sha256`. It runs when opening the panel. Failure hides the indicator.
+`upstream.sha256`. It runs when opening the panel. A failed check, abnormal exit, or unrecognized output shows an unknown-status
+indicator and explanation. While checking, the panel shows a checking message;
+reopening retries asynchronously without retaining a stale successful result.
 It checks installed package changes, not unreleased online changes. Custom
 files are never included in this comparison.
 

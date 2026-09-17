@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Pace.js" as Pace
+import "Upstream.js" as Upstream
 
 Panel {
   id: root
@@ -32,7 +33,9 @@ Panel {
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
   property bool cursorActive: false
-  property bool upstreamChanged: false
+  property string upstreamStatus: "unknown"
+  readonly property bool upstreamChanged: upstreamStatus === "changed"
+  readonly property bool upstreamUnknown: upstreamStatus === "unknown"
   property bool showUpstreamDetails: false
   readonly property color paceOrange: colorLuminance(surface) > 0.5 ? "#a84b00" : "#ffb454"
   readonly property color paceRed: colorLuminance(surface) > 0.5 ? "#bd2028" : "#ff737b"
@@ -43,8 +46,9 @@ Panel {
     property string result: ""
     stdout: StdioCollector { onStreamFinished: upstreamCheck.result = text.trim() }
     onExited: function(code, status) {
-      root.upstreamChanged = code === 0 && result === "changed"
-      if (!root.upstreamChanged) root.showUpstreamDetails = false
+      // QProcess::NormalExit is 0; Quickshell exposes the value, not the enum.
+      root.upstreamStatus = Upstream.classify(code, status === 0, result)
+      if (root.upstreamStatus === "current") root.showUpstreamDetails = false
       result = ""
     }
   }
@@ -325,7 +329,11 @@ Panel {
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
-    if (!upstreamCheck.running) upstreamCheck.running = true
+    if (!upstreamCheck.running) {
+      upstreamStatus = "unknown"
+      upstreamCheck.result = ""
+      upstreamCheck.running = true
+    }
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -425,9 +433,11 @@ Panel {
 
             trailingControl: Component {
               Button {
-                visible: root.upstreamChanged
-                iconText: "󰚰"
-                tooltipText: "Agents widget has upstream changes to review."
+                visible: root.upstreamChanged || root.upstreamUnknown
+                iconText: root.upstreamUnknown ? "?" : "󰚰"
+                tooltipText: root.upstreamUnknown
+                  ? "Upstream status unknown. Open details for more information."
+                  : "Agents widget has upstream changes to review."
                 foreground: root.paceOrange
                 focusable: true
                 onClicked: root.showUpstreamDetails = !root.showUpstreamDetails
@@ -489,9 +499,11 @@ Panel {
           }
 
           Text {
-            visible: root.upstreamChanged && root.showUpstreamDetails
+            visible: root.upstreamUnknown || (root.upstreamChanged && root.showUpstreamDetails)
             width: parent.width
-            text: "Agents widget has upstream changes to review. An installed Omarchy update changed the stock widget. Review and merge those changes into this customization before updating its baseline."
+            text: root.upstreamUnknown
+              ? (upstreamCheck.running ? "Checking installed Omarchy changes…" : "Upstream status unknown. Could not verify the installed stock widget against its reviewed baseline. Reopen this panel to retry.")
+              : "Agents widget has upstream changes to review. An installed Omarchy update changed the stock widget. Review and merge those changes into this customization before updating its baseline."
             wrapMode: Text.WordWrap
             color: root.foreground
             font.family: root.fontFamily
