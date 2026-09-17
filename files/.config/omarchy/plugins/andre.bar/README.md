@@ -181,3 +181,12 @@ declaring `kinds: ["bar-widget"]` and a `barWidget` entry point. See
 [../../README.md](../../README.md) for the manifest schema. Rescan, enable,
 and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 `omarchy plugin enable`, and `omarchy bar move`.
+
+### Open-panel indicator colors
+
+The open-panel underline follows the active theme: white (`#ffffff`) in light/day
+themes and pale blue (`#89b4fa`) in dark/night themes, at 90% opacity. Theme
+background brightness determines the mode, so automatic theme changes update
+the indicator without restarting the shell. Optional `bar.openIndicatorDayColor`
+and `bar.openIndicatorNightColor` values in `~/.config/omarchy/shell.json`
+override these colors.
