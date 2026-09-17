@@ -123,7 +123,7 @@ Column {
       font.family: root.fontFamily; font.pixelSize: Style.font.caption
     }
     Text {
-      text: "━ Battery draw · W"
+      text: "● Battery draw · W"
       color: root.powerColor
       font.family: root.fontFamily; font.pixelSize: Style.font.caption
     }
@@ -184,15 +184,11 @@ Column {
         ctx.fillStyle = root.powerColor
         ctx.globalAlpha = 0.8
         root.powerGroups.forEach(function(group) {
-          ctx.beginPath()
-          group.forEach(function(point, index) {
-            if (index === 0) ctx.moveTo(px(point), wy(point))
-            else ctx.lineTo(px(point), wy(point))
+          group.forEach(function(point) {
+            ctx.beginPath()
+            ctx.arc(px(point), wy(point), Style.space(1.8), 0, Math.PI * 2)
+            ctx.fill()
           })
-          ctx.stroke()
-          if (group.length === 1) {
-            ctx.beginPath(); ctx.arc(px(group[0]), wy(group[0]), Style.space(1.5), 0, Math.PI * 2); ctx.fill()
-          }
         })
         ctx.globalAlpha = 0.95
         ctx.strokeStyle = root.foreground
