@@ -177,4 +177,20 @@ BarWidget {
       }
     }
   }
+
+  // Independent maintenance check; never delay this component's normal work.
+  Timer {
+    interval: 5000
+    running: true
+    repeat: false
+    onTriggered: upstreamCheck.running = true
+  }
+
+  Process {
+    id: upstreamCheck
+    command: ["bash", Qt.resolvedUrl("check-upstream").toString().replace("file://", ""), "--notify"]
+    onExited: function(code, status) {
+      if (code !== 0 || status !== 0) console.warn("omarchy clock: upstream check/notification process failed", code, status)
+    }
+  }
 }

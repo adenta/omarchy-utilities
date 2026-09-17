@@ -1,0 +1,40 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync, execFileSync } = require('node:child_process');
+const plugin = path.resolve(__dirname, '..');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'screensaver-upstream-'));
+try {
+  const source = path.join(dir, 'launcher with spaces');
+  const baseline = path.join(dir, 'baseline');
+  const bin = path.join(dir, 'bin');
+  const log = path.join(dir, 'notifications');
+  fs.mkdirSync(bin); fs.writeFileSync(source, 'original');
+  const hash = execFileSync('bash', ['-c', 'sha256sum -- "$1" | sha256sum | cut -d " " -f 1', 'hash', path.basename(source)], { cwd: dir, encoding: 'utf8' });
+  fs.writeFileSync(baseline, hash);
+  const stub = (name, body) => fs.writeFileSync(path.join(bin, name), '#!/bin/bash\n' + body, { mode: 0o755 });
+  stub('omarchy', 'printf "%s\\n" "$@" >> "$TEST_LOG"\nexit "${TEST_NOTIFY_EXIT:-0}"\n');
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_LOG: log };
+  const run = (notify = false, extra = {}) => spawnSync('bash', [path.join(plugin, 'check-upstream'), ...(notify ? ['--notify'] : []), source, baseline], { env: { ...env, ...extra }, encoding: 'utf8' });
+  const check = expected => { const r=run(); assert.equal(r.status, 0, r.stderr); assert.equal(r.stdout.trim(),expected); };
+  const notification = headline => {
+    fs.rmSync(log,{force:true}); const r=run(true); assert.equal(r.status,0,r.stderr);
+    const lines=fs.readFileSync(log,'utf8').trim().split('\n');
+    assert.deepEqual(lines.slice(0,5),['notification','send','-u','normal',headline]); assert.equal(lines.length,6);
+  };
+  check('current'); assert.equal(run(true).status,0); assert.equal(fs.existsSync(log),false);
+  fs.writeFileSync(path.join(dir,'unrelated'),'ignored'); check('current');
+  fs.writeFileSync(source,'modified'); check('changed');
+  notification('Custom screensaver launcher needs review'); notification('Custom screensaver launcher needs review');
+  assert.equal(fs.readFileSync(baseline,'utf8'),hash);
+  const failure=run(true,{TEST_NOTIFY_EXIT:'1'}); assert.equal(failure.status,1); assert.match(failure.stderr,/delivery failed/);
+  fs.writeFileSync(baseline,'invalid'); notification('Screensaver update check failed');
+  fs.unlinkSync(baseline); notification('Screensaver update check failed');
+  fs.writeFileSync(baseline,hash); fs.unlinkSync(source); notification('Screensaver update check failed');
+  fs.writeFileSync(source,'original');
+  stub('sha256sum','exit 1\n'); notification('Screensaver update check failed');
+  stub('sha256sum','sleep 10\n'); const start=Date.now(); notification('Screensaver update check failed');
+  assert.ok(Date.now()-start<5000,'hash must time out');
+  console.log('PASS: launcher baseline, silence, changed/missing source, invalid baseline, hash failure/timeout, repeated notifications, delivery failure');
+} finally { fs.rmSync(dir,{recursive:true,force:true}); }

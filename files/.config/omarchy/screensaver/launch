@@ -26,6 +26,9 @@ case $terminal in
   ;;
 esac
 
+# Check the copied launcher independently, without delaying screensaver startup.
+bash "$(dirname "${BASH_SOURCE[0]}")/check-upstream" --notify </dev/null &
+
 # Select only after the launch checks pass. Every monitor starts with this
 # immutable artwork path, then rotates independently in its own renderer.
 artwork=$("$HOME/.local/bin/omarchy-pokemon-select" --path) || exit 1

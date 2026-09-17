@@ -1,0 +1,39 @@
+#!/bin/bash
+# Compare installed stock screensaver launcher code with the explicitly reviewed baseline.
+set -euo pipefail
+
+if [[ ${1:-} == --notify ]]; then
+  shift
+  if result=$(timeout 2s bash "$0" "$@"); then
+    case $result in
+      current) exit 0 ;;
+      changed)
+        headline="Custom screensaver launcher needs review"
+        body="Omarchy’s stock screensaver launcher code changed. Review your custom screensaver launcher for updates."
+        ;;
+      *) result=unknown ;;
+    esac
+  else
+    result=unknown
+  fi
+  if [[ $result == unknown ]]; then
+    headline="Screensaver update check failed"
+    body="Could not verify whether your custom screensaver launcher is up to date with installed Omarchy."
+  fi
+  if ! omarchy notification send -u normal "$headline" "$body"; then
+    echo "omarchy screensaver launcher: upstream notification delivery failed" >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+source_file=${1:-/usr/share/omarchy/bin/omarchy-launch-screensaver}
+baseline=${2:-$(dirname "$0")/upstream.sha256}
+[[ -f $source_file && -f $baseline ]] || exit 1
+current=$(
+  cd "$(dirname "$source_file")"
+  sha256sum -- "$(basename "$source_file")" | sha256sum | cut -d ' ' -f 1
+)
+expected=$(cat "$baseline")
+[[ $expected =~ ^[0-9a-f]{64}$ ]] || exit 1
+if [[ $current == "$expected" ]]; then echo current; else echo changed; fi

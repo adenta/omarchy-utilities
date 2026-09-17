@@ -22,7 +22,7 @@ function fixture(extra = {}) {
   }
   fs.cpSync(path.join(files, '.local/share/omarchy-pokemon-screensaver/art'), art, { recursive: true });
   fs.writeFileSync(state, names.join('\n') + '\n');
-  for (const rel of ['.config/omarchy/screensaver/launch', '.config/omarchy/screensaver/render',
+  for (const rel of ['.config/omarchy/screensaver/launch', '.config/omarchy/screensaver/render', '.config/omarchy/screensaver/check-upstream', '.config/omarchy/screensaver/upstream.sha256',
     '.local/bin/omarchy-pokemon-select', '.local/bin/omarchy-pokemon-screensaver']) {
     fs.copyFileSync(path.join(files, rel), path.join(home, rel));
   }
@@ -47,6 +47,7 @@ esac`);
   stub('omarchy-hyprland-monitor-focused', 'echo monitor-one');
   stub('xdg-terminal-exec', 'echo "${TEST_TERMINAL:-foot.desktop}"');
   stub('omarchy-notification-send', 'exit 0');
+  stub('omarchy', 'exit 0');
   stub('socat', `printf 'openwindow>>one,org.omarchy.screensaver,title\\nopenwindow>>two,org.omarchy.screensaver,title\\n'`);
   stub('shuf', `# Artwork shuffling still uses the real command.
 if [[ $1 != -n || $2 != 1 || $3 != -e ]]; then exec /usr/bin/shuf "$@"; fi
