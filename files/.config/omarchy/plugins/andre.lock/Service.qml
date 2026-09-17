@@ -22,7 +22,6 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
-  property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
   property string failureMessage: ""
@@ -315,45 +314,6 @@ Item {
     }
   }
 
-  PanelWindow {
-    id: previewWindow
-    visible: root.previewVisible
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    WlrLayershell.namespace: "omarchy-lock-preview"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    exclusionMode: ExclusionMode.Ignore
-
-    LockView {
-      anchors.fill: parent
-      backgroundPath: root.backgroundPath
-      backgroundVersion: root.backgroundVersion
-      fingerprintConfigured: root.fingerprintConfigured
-      authenticatingPassword: false
-      failureMessage: ""
-      failedAttempts: 0
-      inputEnabled: false
-      loadBackground: root.previewVisible
-      passwordText: ""
-      faceOutcome: faceObserver.outcome
-      faceUpstream: faceObserver.upstream
-      faceEnrolled: faceObserver.enrolled
-      faceRecords: faceObserver.records
-      faceLogStatus: faceObserver.logStatus
-      faceEnabled: true
-      faceTopMargin: Math.max(8, Math.min(120, Number(root.observeSettings.topMargin) || 20))
-      onFaceDetailsRequested: faceObserver.refresh()
-    }
-
-    MouseArea {
-      anchors.fill: parent
-      acceptedButtons: Qt.NoButton
-      focus: root.previewVisible
-      Keys.onEscapePressed: root.previewVisible = false
-    }
-  }
-
   PamContext {
     id: passwordPam
     config: "omarchy-lock-password"
@@ -580,17 +540,5 @@ Item {
       })
     }
 
-    function preview(): string {
-      root.refreshBackground()
-      root.refreshFingerprintStatus()
-      faceObserver.refresh()
-      root.previewVisible = true
-      return "ok"
-    }
-
-    function hidePreview(): string {
-      root.previewVisible = false
-      return "ok"
-    }
   }
 }

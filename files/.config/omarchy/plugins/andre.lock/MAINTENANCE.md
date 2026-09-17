@@ -67,7 +67,8 @@ Run `node tests/run.cjs` and `bash tests/runtime.sh` inside this component, `bas
 check-upstream`, `omarchy plugin validate PATH`, and QML render/runtime checks.
 Tests compare the critical auth functions with installed stock, so a changed
 stock implementation calls for review rather than weakening assertions.
-Use `omarchy-shell lock preview` to preview (no camera); Escape closes it.
+The fullscreen preview and its IPC methods are removed. Use an isolated QML
+harness for visual checks, then verify actual locking and password unlocking.
 Check `omarchy-shell lock status` for `customization: andre.lock`, version and
 observation state. Do not mistake catalog `active:false` for failure: the host
 intentionally hides authentication services from the ordinary service map.
