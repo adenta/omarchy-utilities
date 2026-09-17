@@ -16,7 +16,7 @@ directly over existing configuration.
 
 | Component | Source / installed location | Dependencies and checks |
 | --- | --- | --- |
-| Bar and panels | `files/.config/omarchy/plugins/andre.{bar,clock,system-pulse,backups,credits,background,idle}` | Omarchy shell/Quickshell; htop for System Pulse; open each panel and run its existing tests. |
+| Bar and panels | `files/.config/omarchy/plugins/andre.{bar,clock,system-pulse,backups,credits,background,idle,agents}` | Omarchy shell/Quickshell; htop for System Pulse; open each panel and run its existing tests. |
 | Shared window and keyboard behavior | `files/.config/hypr/omarchy-utilities.lua` | Load once at the end of personal `hyprland.lua`; reload and check config errors. |
 | Themes and night light | `files/.local/share/darkman/`, `files/.config/omarchy/hooks/`, the two orb wallpapers, and `hyprsunset.conf` | Darkman, Omarchy, Hyprsunset; check light/dark transitions and night-light temperature. Darkman's location stays local. |
 | Pokémon screensaver | `files/.local/bin/omarchy-pokemon-*`, `files/.local/share/omarchy-pokemon-screensaver/`, `files/.config/omarchy/screensaver/`, `andre.idle` | Omarchy renderer/ttfx and a supported terminal; verify launch, exit, and artwork cycling. Keep rotation state local. |
@@ -28,6 +28,22 @@ directly over existing configuration.
 | Dictation integration | `files/.config/voxtype-deepgram/`, user service, and `files/.local/libexec/voxtype-deepgram-daemon` | Custom [VoxType](https://github.com/adenta/voxtype) build, desktop integration, keyring; verify Insert toggle, buffered paste, clipboard restoration, and destination protection. |
 | LocalSend background receiver | `files/.config/autostart/localsend_app.desktop` and the local minimize-to-tray preference | LocalSend; start hidden after desktop login, keep listening when its window closes, and verify port 53317 from the other machine. |
 | Default file-dialog folder | `examples/file-chooser.dconf` and `files/.config/systemd/user/xdg-desktop-portal-gtk.service.d/` | GTK 3/4, dconf, GTK desktop portal; new portal dialogs without an app-specified folder begin at Downloads. |
+
+### Codex weekly pace panel
+
+The shared `andre.agents` plugin replaces stock `omarchy.agents`. Its weekly
+Codex meter marks the allowance for the exact elapsed portion of the week,
+labels pace, and turns orange/red when usage exceeds that allowance. The header
+indicates installed stock-widget changes that need review; it does not fetch or
+install updates. See the plugin's `MAINTENANCE.md` for baseline handling.
+
+Deploy only this plugin's committed files, preserving account data in each
+machine's local state directory. Run `omarchy-shell shell rescanPlugins`, then
+`omarchy plugin enable andre.agents` to replace the existing stock slot while
+preserving the rest of the local bar configuration. Saved changes normally
+hot-reload; restart the shell only if the old code remains cached. Verify the
+plugin, pace tests, and stock baseline on both machines. Different stock Omarchy
+versions may legitimately show the review icon on only one machine.
 
 ## Personal integration
 
@@ -128,6 +144,7 @@ Run the relevant existing panel tests:
 node files/.config/omarchy/plugins/andre.system-pulse/tests/run.js
 node files/.config/omarchy/plugins/andre.backups/tests/run.js
 node files/.config/omarchy/plugins/andre.credits/tests/run.js
+node files/.config/omarchy/plugins/andre.agents/tests/run.cjs
 bash tests/backup-policy.sh
 bash tests/backup-size.sh
 node tests/pokemon-screensaver.js

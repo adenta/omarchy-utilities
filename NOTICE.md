@@ -4,6 +4,10 @@
   screensaver launcher/controller originated from Omarchy 4.0.3 (some personal
   clones were created on 4.0.2): https://github.com/basecamp/omarchy. Preserve the MIT notice
   in `licenses/Omarchy-MIT.txt` with these components.
+- The Agents panel is an MIT-licensed clone of the installed Omarchy Agents
+  widget captured on 2026-09-17; its source fingerprint is retained in
+  `andre.agents/upstream.sha256`, and the Omarchy MIT notice is also included
+  beside the plugin.
 - System Pulse derives from Fernando Menolli's omarchy-htop. Its existing MIT
   license and source notes remain beside the plugin.
 - The Backups and Credits panels retain their existing MIT license files.
