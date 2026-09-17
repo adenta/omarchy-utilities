@@ -17,6 +17,7 @@ directly over existing configuration.
 | Component | Source / installed location | Dependencies and checks |
 | --- | --- | --- |
 | Bar and panels | `files/.config/omarchy/plugins/andre.{bar,clock,system-pulse,backups,credits,background,idle,agents}` | Omarchy shell/Quickshell; htop for System Pulse; open each panel and run its existing tests. |
+| Battery history panel (XPS only) | `files/.config/omarchy/plugins/andre.power` | UPower; preserve history/aggregation, run `node tests/history.test.cjs`, `node tests/aggregation.test.cjs`, and `node tests/run.cjs` inside the plugin. Grace keeps stock power. |
 | Lock-screen observation (XPS only) | `files/.config/omarchy/plugins/andre.lock` | Facelock via dedicated observation PAM; icons, local logs and upstream baseline checking. See [setup and boundaries](docs/face-observe.md). |
 | Shared window and keyboard behavior | `files/.config/hypr/omarchy-utilities.lua` | Load once at the end of personal `hyprland.lua`; reload and check config errors. |
 | Themes and night light | `files/.local/share/darkman/`, `files/.config/omarchy/hooks/`, the two orb wallpapers, and `hyprsunset.conf` | Darkman, Omarchy, Hyprsunset; check light/dark transitions and night-light temperature. Darkman's location stays local. |

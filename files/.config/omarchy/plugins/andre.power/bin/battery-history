@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euo pipefail
+case "${1:-}" in 3600|86400|604800) span=$1 ;; *) exit 2 ;; esac
+case "$span" in
+  3600) resolution=10000; interval=0 ;;
+  86400) resolution=1000000; interval=300 ;;
+  604800) resolution=1000000; interval=1800 ;;
+esac
+case "${2:-charge}" in charge|all) mode=${2:-charge} ;; *) exit 2 ;; esac
+bus=(busctl --system --timeout=5 --json=short)
+service=org.freedesktop.UPower
+interface=org.freedesktop.UPower.Device
+devices=$("${bus[@]}" call "$service" /org/freedesktop/UPower "$service" EnumerateDevices)
+while IFS= read -r device; do
+  properties=$("${bus[@]}" call "$service" "$device" org.freedesktop.DBus.Properties GetAll s "$interface")
+  if jq -e '.data[0] | .Type.data == 2 and .PowerSupply.data == true and .IsPresent.data == true and .HasHistory.data == true' <<<"$properties" >/dev/null; then
+    # Fetch full detail for deterministic time buckets; leave hour data intact.
+    if [[ $mode == charge ]]; then
+      "${bus[@]}" call "$service" "$device" "$interface" GetHistory suu charge "$span" "$resolution" |
+        jq --argjson interval "$interval" --arg kind charge -f "$(dirname -- "$0")/aggregate.jq"
+      exit 0
+    fi
+    charge=$("${bus[@]}" call "$service" "$device" "$interface" GetHistory suu charge "$span" "$resolution")
+    rate=$("${bus[@]}" call "$service" "$device" "$interface" GetHistory suu rate "$span" "$resolution")
+    {
+      printf '%s\n' "$charge" | jq --argjson interval "$interval" --arg kind charge -f "$(dirname -- "$0")/aggregate.jq" || exit
+      printf '%s\n' "$rate" | jq --argjson interval "$interval" --arg kind rate -f "$(dirname -- "$0")/aggregate.jq" || exit
+    } | jq -s 'if length == 2 then {charge: .[0], rate: .[1]} else error("Incomplete history") end'
+    exit 0
+  fi
+done < <(jq -r '.data[0][]' <<<"$devices")
+echo 'No laptop battery with history is available' >&2
+exit 1
