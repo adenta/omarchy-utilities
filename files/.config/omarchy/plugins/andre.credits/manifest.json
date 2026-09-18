@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "andre.credits",
   "name": "Credits",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Andre",
   "license": "MIT",
-  "description": "Service balances, starting with Deepgram.",
+  "description": "Deepgram and OpenRouter balances with a selectable bar amount.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Credits",
-    "description": "Service balances, starting with Deepgram.",
+    "description": "Deepgram and OpenRouter balances with a selectable bar amount.",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right",

@@ -2,8 +2,8 @@
 # Source: https://github.com/adenta/omarchy-utilities — read AGENTS.md; update XPS and Grace.
 set -euo pipefail
 
-api_key=$(secret-tool lookup application voxtype provider deepgram)
-test -n "$api_key"
+api_key=$(secret-tool lookup application voxtype provider deepgram) || exit 3
+test -n "$api_key" || exit 3
 
 projects_json=$(
   printf 'header = "Authorization: Token %s"\n' "$api_key" |

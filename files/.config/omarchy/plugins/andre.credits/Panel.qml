@@ -1,60 +1,165 @@
 import QtQuick
+import QtCore
 import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "model/Balance.js" as Balance
+
 Panel {
- id:root
- moduleName:"andre.credits"
- ipcTarget:"andre.credits"
- readonly property color foreground:bar ? bar.foreground : Color.foreground
- readonly property string fontFamily:bar ? bar.fontFamily : Style.font.family
- property var balance:null
- property double refreshedAt:0
- property bool failed:false
- property bool attempted:false
- implicitWidth:group.implicitWidth
- implicitHeight:group.implicitHeight
- function refresh() { if(!scan.running) scan.running=true }
- Process {
-  id:scan; command:["bash",Qt.resolvedUrl("bin/deepgram-balance").toString().replace("file://", "")]
-  property string result:""
-  stdout:StdioCollector { onStreamFinished:scan.result=text }
-  onExited:function(code,status) {
-   var value=Balance.parseUsd(result)
-   root.attempted=true
-   if(code===0 && value!==null) { root.balance=value; root.refreshedAt=Date.now(); root.failed=false }
-   else root.failed=true
-   result=""
+  id: root
+  moduleName: "andre.credits"
+  ipcTarget: "andre.credits"
+  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  property var deepgram: Balance.empty()
+  property var openrouter: Balance.empty()
+  property int cursorIndex: 0
+  readonly property string selected: Balance.selection(preferences.provider)
+  readonly property var selectedState: selected === "deepgram" ? deepgram : openrouter
+  readonly property bool refreshing: deepgramScan.running || openrouterScan.running
+  implicitWidth: group.implicitWidth
+  implicitHeight: group.implicitHeight
+
+  Settings {
+    id: preferences
+    location: "file://" + (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omarchy/credits.ini"
+    category: "andre.credits"
+    property string provider: ""
   }
- }
- Timer { interval:600000; repeat:true; running:true; triggeredOnStart:true; onTriggered:root.refresh() }
- WidgetButton {
-  id:group; anchors.centerIn:parent; bar:root.bar; horizontalMargin:4.5
-  text:"󰠟 " + (root.balance===null ? "$--" : "$"+root.balance.toFixed(2))
-  dimmed:root.failed
-  tooltipText:"Credits · Deepgram"+(root.failed ? " · refresh failed" : "")
-  onPressed:root.toggle()
- }
- KeyboardPanel {
-  id:panel; anchorItem:group; owner:root; bar:root.bar; open:root.opened; focusTarget:keyCatcher
-  contentWidth:panel.fittedContentWidth(Style.space(320))
-  contentHeight:panel.fittedContentHeight(column.implicitHeight,Style.space(500))
-  PanelKeyCatcher {
-   id:keyCatcher; anchors.fill:parent
-   onCloseRequested:root.close()
-   onTabRequested:function(direction) { root.switchPanel(direction) }
-   onActivateRequested:root.refresh()
-   Column {
-    id:column; width:parent.width; spacing:Style.space(12)
-    PanelHero { title:"Credits"; meta:"Deepgram"; foreground:root.foreground; fontFamily:root.fontFamily; iconComponent:Component { Text { text:"󰠟"; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.display } } }
-    PanelSeparator { foreground:root.foreground }
-    DetailRow { label:"Available balance"; value:root.balance===null ? (scan.running ? "Loading…" : "Unavailable") : "$"+root.balance.toFixed(2) }
-    DetailRow { label:"Last refreshed"; value:root.refreshedAt ? new Date(root.refreshedAt).toLocaleString() : "Not yet" }
-    DetailRow { visible:root.failed; label:"Status"; value:root.balance===null ? "Could not read balance. Check network access and Keyring." : "Refresh failed. Showing the last known balance." }
-    Button { width:parent.width; text:scan.running ? "Refreshing…" : "Refresh"; iconText:"󰑓"; iconSpinning:scan.running; enabled:!scan.running; hasCursor:true; bordered:true; foreground:root.foreground; onClicked:root.refresh() }
-   }
+  function choose(provider) { preferences.provider = Balance.toggleSelection(root.selected, provider) }
+  function refresh() {
+    if (!deepgramScan.running) deepgramScan.running = true
+    if (!openrouterScan.running) openrouterScan.running = true
   }
- }
+  function activate() {
+    if (cursorIndex === 0) choose("deepgram")
+    else if (cursorIndex === 1) choose("openrouter")
+    else if (!refreshing) refresh()
+  }
+  function status(state) {
+    if (state.error) return state.error + (state.refreshedAt ? " · showing last balance" : "")
+    return state.refreshedAt ? "Updated " + new Date(state.refreshedAt).toLocaleTimeString(Qt.locale(), "h:mm AP") : "Not yet refreshed"
+  }
+  Process {
+    id: deepgramScan
+    command: ["bash", Qt.resolvedUrl("bin/deepgram-balance").toString().replace("file://", "")]
+    property string result: ""
+    stdout: StdioCollector { onStreamFinished: deepgramScan.result = text }
+    onExited: function(code, status) {
+      root.deepgram = Balance.update(root.deepgram, result, code, Date.now(), false)
+      result = ""
+    }
+  }
+  Process {
+    id: openrouterScan
+    command: ["bash", Qt.resolvedUrl("bin/openrouter-balance").toString().replace("file://", "")]
+    property string result: ""
+    stdout: StdioCollector { onStreamFinished: openrouterScan.result = text }
+    onExited: function(code, status) {
+      root.openrouter = Balance.update(root.openrouter, result, code, Date.now(), true)
+      result = ""
+    }
+  }
+  Timer { interval: 3600000; repeat: true; running: true; triggeredOnStart: true; onTriggered: root.refresh() }
+  WidgetButton {
+    id: group
+    anchors.centerIn: parent
+    bar: root.bar
+    horizontalMargin: 4.5
+    text: "󰠟" + (root.selected ? " " + Balance.display(root.selectedState, "$--") : "")
+    dimmed: !!root.selected && !!root.selectedState.error
+    tooltipText: "Credits" + (root.selected ? " · " + (root.selected === "deepgram" ? "Deepgram" : "OpenRouter") + (root.selectedState.error ? " · " + root.selectedState.error : "") : "")
+    onPressed: root.toggle()
+  }
+  KeyboardPanel {
+    id: panel
+    anchorItem: group
+    owner: root
+    bar: root.bar
+    open: root.opened
+    focusTarget: keyCatcher
+    contentWidth: panel.fittedContentWidth(Style.space(360))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(500))
+    PanelKeyCatcher {
+      id: keyCatcher
+      anchors.fill: parent
+      onCloseRequested: root.close()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) { if (dy) root.cursorIndex = (root.cursorIndex + dy + 3) % 3 }
+      onActivateRequested: root.activate()
+      Column {
+        id: column
+        width: parent.width
+        spacing: Style.spacing.md
+        PanelHero {
+          title: "Credits"
+          meta: "Available balances"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          iconComponent: Component { Text { text: "󰠟"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.display } }
+        }
+        PanelSeparator { foreground: root.foreground }
+        Row {
+          width: parent.width
+          Text { width: parent.width * 0.55; text: "Service"; color: root.foreground; opacity: 0.7; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+          Text { width: parent.width * 0.45; text: "Remaining"; horizontalAlignment: Text.AlignRight; color: root.foreground; opacity: 0.7; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+        }
+        Repeater {
+          model: ["deepgram", "openrouter"]
+          delegate: Column {
+            id: service
+            required property string modelData
+            required property int index
+            readonly property var state: modelData === "deepgram" ? root.deepgram : root.openrouter
+            readonly property bool loading: modelData === "deepgram" ? deepgramScan.running : openrouterScan.running
+            width: column.width
+            spacing: Style.spacing.sm
+            CursorSurface {
+              width: parent.width
+              implicitHeight: Style.spacing.controlHeight + Style.spacing.sm
+              foreground: root.foreground
+              hasCursor: root.cursorIndex === service.index
+              Accessible.role: Accessible.RadioButton
+              Accessible.name: service.modelData === "deepgram" ? "Show Deepgram in bar" : "Show OpenRouter in bar"
+              Accessible.checkable: true
+              Accessible.checked: root.selected === service.modelData
+              Accessible.onPressAction: root.choose(service.modelData)
+              Row {
+                anchors.fill: parent
+                spacing: Style.spacing.sm
+                Item {
+                  width: Style.space(24); height: parent.height
+                  Rectangle {
+                    anchors.centerIn: parent
+                    width: Style.space(14); height: width; radius: width / 2
+                    color: "transparent"; border.color: root.foreground; border.width: 1
+                    Rectangle { anchors.centerIn: parent; width: Style.space(6); height: width; radius: width / 2; color: root.foreground; visible: root.selected === service.modelData }
+                  }
+                }
+                Text { width: parent.width * 0.45 - Style.space(24); height: parent.height; verticalAlignment: Text.AlignVCenter; text: service.modelData === "deepgram" ? "Deepgram" : "OpenRouter"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { width: parent.width * 0.55 - 2 * Style.spacing.sm; height: parent.height; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignRight; text: Balance.display(service.state, service.loading ? "Loading…" : "Unavailable"); color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+              }
+              MouseArea { anchors.fill: parent; hoverEnabled: true; onEntered: root.cursorIndex = service.index; onClicked: root.choose(service.modelData) }
+            }
+            Text { width: parent.width; text: root.status(service.state); wrapMode: Text.WordWrap; color: root.foreground; opacity: 0.7; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+            PanelSeparator { width: parent.width; foreground: root.foreground }
+          }
+        }
+        Button {
+          width: parent.width
+          text: root.refreshing ? "Refreshing…" : "Refresh"
+          iconText: "󰑓"
+          iconSpinning: root.refreshing
+          enabled: !root.refreshing
+          hasCursor: root.cursorIndex === 2
+          bordered: true
+          foreground: root.foreground
+          onHovered: function(hovered) { if (hovered) root.cursorIndex = 2 }
+          onClicked: root.refresh()
+        }
+        Text { text: "Refreshes hourly · Select a row to show it in the bar"; color: root.foreground; opacity: 0.7; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
+      }
+    }
+  }
 }
