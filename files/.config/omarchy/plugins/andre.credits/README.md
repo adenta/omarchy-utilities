@@ -1,6 +1,6 @@
 # Credits
 
-Shows Deepgram and OpenRouter remaining USD balances. Click a row's radio to
+Shows Deepgram and OpenRouter remaining USD balances. Click a row's stock Omarchy toggle switch to
 show that service in the bar; click again to return to icon-only. No service is
 selected initially. Selection is saved locally in `~/.config/omarchy/credits.ini`.
 Up/Down moves between rows and Refresh; Enter/Space activates the current control.

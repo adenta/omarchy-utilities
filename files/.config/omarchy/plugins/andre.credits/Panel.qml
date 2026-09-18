@@ -120,7 +120,7 @@ Panel {
               implicitHeight: Style.spacing.controlHeight + Style.spacing.sm
               foreground: root.foreground
               hasCursor: root.cursorIndex === service.index
-              Accessible.role: Accessible.RadioButton
+              Accessible.role: Accessible.CheckBox
               Accessible.name: service.modelData === "deepgram" ? "Show Deepgram in bar" : "Show OpenRouter in bar"
               Accessible.checkable: true
               Accessible.checked: root.selected === service.modelData
@@ -128,16 +128,14 @@ Panel {
               Row {
                 anchors.fill: parent
                 spacing: Style.spacing.sm
-                Item {
-                  width: Style.space(24); height: parent.height
-                  Rectangle {
-                    anchors.centerIn: parent
-                    width: Style.space(14); height: width; radius: width / 2
-                    color: "transparent"; border.color: root.foreground; border.width: 1
-                    Rectangle { anchors.centerIn: parent; width: Style.space(6); height: width; radius: width / 2; color: root.foreground; visible: root.selected === service.modelData }
-                  }
+                ToggleSwitch {
+                  id: serviceSwitch
+                  anchors.verticalCenter: parent.verticalCenter
+                  checked: root.selected === service.modelData
+                  interactive: false
+                  foreground: root.foreground
                 }
-                Text { width: parent.width * 0.45 - Style.space(24); height: parent.height; verticalAlignment: Text.AlignVCenter; text: service.modelData === "deepgram" ? "Deepgram" : "OpenRouter"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { width: parent.width * 0.45 - serviceSwitch.width; height: parent.height; verticalAlignment: Text.AlignVCenter; text: service.modelData === "deepgram" ? "Deepgram" : "OpenRouter"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
                 Text { width: parent.width * 0.55 - 2 * Style.spacing.sm; height: parent.height; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignRight; text: Balance.display(service.state, service.loading ? "Loading…" : "Unavailable"); color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               }
               MouseArea { anchors.fill: parent; hoverEnabled: true; onEntered: root.cursorIndex = service.index; onClicked: root.choose(service.modelData) }
