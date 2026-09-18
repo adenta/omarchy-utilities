@@ -7,8 +7,15 @@ Changes: exact-time weekly Codex pace marker and status, orange when up to five
 percentage points above pace and red beyond that, plus a header indicator when
 the installed stock widget differs from the reviewed baseline.
 
-`Pace.js` owns the arithmetic; `Panel.qml` renders it. Existing refresh behavior
-is retained (30-second countdown while open; usage refresh on opening).
+`Pace.js` owns the arithmetic; `Panel.qml` renders it. The bar uses the font's
+angry robot when Codex is above weekly pace: orange up to five percentage points
+above target, red beyond that or at the limit. Bar colors adapt to the bar's
+background; panel colors adapt to the popup. The warning remains visible when
+another provider is selected. On-track or unavailable pace uses the original
+excited robot, retaining existing low-balance and near-limit color alarms.
+The 30-second clock runs while the widget is visible, including with the panel
+closed, so the expression can recover as time passes. Usage refresh on opening
+is retained.
 `check-upstream` compares the sorted stock file names and SHA-256 hashes with
 `upstream.sha256`. It runs when opening the panel. A failed check, abnormal exit, or unrecognized output shows an unknown-status
 indicator and explanation. While checking, the panel shows a checking message;

@@ -32,6 +32,14 @@ assert.ok(ctx.weekly(.18,reset,now+3600000).target>pace.target);
 assert.equal(ctx.weekly(0,new Date(now+7*day).toISOString(),now).target,0);
 for(const date of ['', 'bad',new Date(now).toISOString(),new Date(now-1).toISOString(),new Date(now+8*day).toISOString()]) assert.equal(ctx.weekly(.18,date,now),null);
 for(const usage of [NaN,-1,undefined]) assert.equal(ctx.weekly(usage,reset,now),null);
+const weeklyWindow = percent => ({weekly:true,percent,resetAt:reset});
+assert.equal(ctx.highestLevel([],now),0);
+assert.equal(ctx.highestLevel([{weekly:false,percent:1,resetAt:reset}],now),0);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025)],now),1);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025),weeklyWindow(pace.target+.06)],now),2);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025)],now+day),0);
+assert.equal(ctx.highestLevel([weeklyWindow(.8)],Date.parse(reset)),0);
+assert.equal(ctx.highestLevel([{weekly:true,percent:.8,resetAt:'bad'}],now),0);
 const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'agents-upstream-test-'));
 try {
  const stock=path.join(fixture,'stock');fs.mkdirSync(stock);

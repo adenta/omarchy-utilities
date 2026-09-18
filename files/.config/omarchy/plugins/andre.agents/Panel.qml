@@ -66,6 +66,18 @@ Panel {
   readonly property bool balanceAlarming: !!balance && balance.funded > 0
     && balance.remaining / balance.funded <= 0.1
   readonly property bool alarming: (!!headline && headline.percent >= 0.9) || balanceAlarming
+  // Keep the Codex warning visible even when another provider's tab is selected.
+  readonly property int barPaceLevel: {
+    for (var i = 0; i < providers.length; i++) {
+      if (providers[i].providerId === "codex")
+        return Pace.highestLevel(limitWindows(providers[i]), nowMs)
+    }
+    return 0
+  }
+  readonly property bool lightBar: colorLuminance(bar ? bar.background : Color.bar.background) > 0.5
+  readonly property color barPaceColor: barPaceLevel === 2
+    ? (lightBar ? "#bd2028" : "#ff737b")
+    : (lightBar ? "#a84b00" : "#ffb454")
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -342,11 +354,10 @@ Panel {
     settings: root.settings
   }
 
-  // Cheap enough to keep running: it only re-evaluates text bindings, and a
-  // stale "resets in 2h" on a panel that is open is worse than a timer.
+  // Pace can return to normal with time even while the panel is closed.
   Timer {
     interval: 30000
-    running: root.opened
+    running: root.visible
     repeat: true
     onTriggered: root.nowMs = Date.now()
   }
@@ -366,8 +377,9 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󱚣"
-    active: root.alarming
+    text: root.barPaceLevel > 0 ? "󱚝" : "󱚣"
+    active: root.barPaceLevel > 0 || root.alarming
+    activeColor: root.barPaceLevel > 0 ? root.barPaceColor : root.urgent
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
       else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)

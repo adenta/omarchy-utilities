@@ -11,3 +11,13 @@ function weekly(used, resetAt, nowMs) {
   return { target: target, level: level,
     label: used >= 1 ? "Limit reached" : level === 2 ? "Well above pace" : level === 1 ? "Above pace" : "On track" };
 }
+
+function highestLevel(windows, nowMs) {
+  var level = 0;
+  for (var i = 0; i < windows.length; i++) {
+    var window = windows[i];
+    var pace = window.weekly ? weekly(window.percent, window.resetAt, nowMs) : null;
+    if (pace) level = Math.max(level, pace.level);
+  }
+  return level;
+}
