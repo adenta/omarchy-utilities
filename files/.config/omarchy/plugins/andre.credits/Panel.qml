@@ -13,11 +13,10 @@ Panel {
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   property var deepgram: Balance.empty()
-  property var openrouter: Balance.empty()
   property int cursorIndex: 0
   readonly property string selected: Balance.selection(preferences.provider)
-  readonly property var selectedState: selected === "deepgram" ? deepgram : openrouter
-  readonly property bool refreshing: deepgramScan.running || openrouterScan.running
+  readonly property var selectedState: deepgram
+  readonly property bool refreshing: deepgramScan.running
   implicitWidth: group.implicitWidth
   implicitHeight: group.implicitHeight
 
@@ -27,14 +26,13 @@ Panel {
     category: "andre.credits"
     property string provider: ""
   }
+  Component.onCompleted: { if (preferences.provider !== root.selected) preferences.provider = root.selected }
   function choose(provider) { preferences.provider = Balance.toggleSelection(root.selected, provider) }
   function refresh() {
     if (!deepgramScan.running) deepgramScan.running = true
-    if (!openrouterScan.running) openrouterScan.running = true
   }
   function activate() {
     if (cursorIndex === 0) choose("deepgram")
-    else if (cursorIndex === 1) choose("openrouter")
     else if (!refreshing) refresh()
   }
   function status(state) {
@@ -47,17 +45,7 @@ Panel {
     property string result: ""
     stdout: StdioCollector { onStreamFinished: deepgramScan.result = text }
     onExited: function(code, status) {
-      root.deepgram = Balance.update(root.deepgram, result, code, Date.now(), false)
-      result = ""
-    }
-  }
-  Process {
-    id: openrouterScan
-    command: ["bash", Qt.resolvedUrl("bin/openrouter-balance").toString().replace("file://", "")]
-    property string result: ""
-    stdout: StdioCollector { onStreamFinished: openrouterScan.result = text }
-    onExited: function(code, status) {
-      root.openrouter = Balance.update(root.openrouter, result, code, Date.now(), true)
+      root.deepgram = Balance.update(root.deepgram, result, code, Date.now())
       result = ""
     }
   }
@@ -69,7 +57,7 @@ Panel {
     horizontalMargin: 4.5
     text: "󰠟" + (root.selected ? " " + Balance.display(root.selectedState, "$--") : "")
     dimmed: !!root.selected && !!root.selectedState.error
-    tooltipText: "Credits" + (root.selected ? " · " + (root.selected === "deepgram" ? "Deepgram" : "OpenRouter") + (root.selectedState.error ? " · " + root.selectedState.error : "") : "")
+    tooltipText: "Credits" + (root.selected ? " · Deepgram" + (root.selectedState.error ? " · " + root.selectedState.error : "") : "")
     onPressed: root.toggle()
   }
   KeyboardPanel {
@@ -86,7 +74,7 @@ Panel {
       anchors.fill: parent
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
-      onMoveRequested: function(dx, dy) { if (dy) root.cursorIndex = (root.cursorIndex + dy + 3) % 3 }
+      onMoveRequested: function(dx, dy) { if (dy) root.cursorIndex = (root.cursorIndex + dy + 2) % 2 }
       onActivateRequested: root.activate()
       Column {
         id: column
@@ -106,13 +94,13 @@ Panel {
           Text { width: parent.width * 0.45; text: "Remaining"; horizontalAlignment: Text.AlignRight; color: root.foreground; opacity: 0.7; font.family: root.fontFamily; font.pixelSize: Style.font.caption }
         }
         Repeater {
-          model: ["deepgram", "openrouter"]
+          model: ["deepgram"]
           delegate: Column {
             id: service
             required property string modelData
             required property int index
-            readonly property var state: modelData === "deepgram" ? root.deepgram : root.openrouter
-            readonly property bool loading: modelData === "deepgram" ? deepgramScan.running : openrouterScan.running
+            readonly property var state: root.deepgram
+            readonly property bool loading: deepgramScan.running
             width: column.width
             spacing: Style.spacing.sm
             CursorSurface {
@@ -121,7 +109,7 @@ Panel {
               foreground: root.foreground
               hasCursor: root.cursorIndex === service.index
               Accessible.role: Accessible.CheckBox
-              Accessible.name: service.modelData === "deepgram" ? "Show Deepgram in bar" : "Show OpenRouter in bar"
+              Accessible.name: "Show Deepgram in bar"
               Accessible.checkable: true
               Accessible.checked: root.selected === service.modelData
               Accessible.onPressAction: root.choose(service.modelData)
@@ -135,7 +123,7 @@ Panel {
                   interactive: false
                   foreground: root.foreground
                 }
-                Text { width: parent.width * 0.45 - serviceSwitch.width; height: parent.height; verticalAlignment: Text.AlignVCenter; text: service.modelData === "deepgram" ? "Deepgram" : "OpenRouter"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                Text { width: parent.width * 0.45 - serviceSwitch.width; height: parent.height; verticalAlignment: Text.AlignVCenter; text: "Deepgram"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
                 Text { width: parent.width * 0.55 - 2 * Style.spacing.sm; height: parent.height; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignRight; text: Balance.display(service.state, service.loading ? "Loading…" : "Unavailable"); color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body }
               }
               MouseArea { anchors.fill: parent; hoverEnabled: true; onEntered: root.cursorIndex = service.index; onClicked: root.choose(service.modelData) }
@@ -150,10 +138,10 @@ Panel {
           iconText: "󰑓"
           iconSpinning: root.refreshing
           enabled: !root.refreshing
-          hasCursor: root.cursorIndex === 2
+          hasCursor: root.cursorIndex === 1
           bordered: true
           foreground: root.foreground
-          onHovered: function(hovered) { if (hovered) root.cursorIndex = 2 }
+          onHovered: function(hovered) { if (hovered) root.cursorIndex = 1 }
           onClicked: root.refresh()
         }
         Text { text: "Refreshes hourly · Select a row to show it in the bar"; color: root.foreground; opacity: 0.7; font.family: root.fontFamily; font.pixelSize: Style.font.caption }

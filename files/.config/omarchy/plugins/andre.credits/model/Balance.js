@@ -9,24 +9,23 @@ function parseUsd(raw) {
 }
 
 function selection(value) {
-  return value === "deepgram" || value === "openrouter" ? value : ""
+  return value === "deepgram" ? value : ""
 }
 
 function toggleSelection(current, provider) {
   return current === provider ? "" : selection(provider)
 }
 
-function empty() { return {amount: null, unlimited: false, refreshedAt: 0, error: ""} }
+function empty() { return {amount: null, refreshedAt: 0, error: ""} }
 
-function update(previous, raw, code, now, allowUnlimited) {
-  var unlimited = allowUnlimited && String(raw).trim() === "unlimited"
+function update(previous, raw, code, now) {
   var amount = parseUsd(raw)
-  if (code === 0 && (unlimited || amount !== null))
-    return {amount: amount, unlimited: unlimited, refreshedAt: now, error: ""}
-  return {amount: previous.amount, unlimited: previous.unlimited,
+  if (code === 0 && amount !== null)
+    return {amount: amount, refreshedAt: now, error: ""}
+  return {amount: previous.amount,
     refreshedAt: previous.refreshedAt, error: code === 3 ? "Key not found or keyring unavailable" : "Refresh failed"}
 }
 
 function display(state, placeholder) {
-  return state.unlimited ? "No key limit" : state.amount === null ? placeholder : "$" + state.amount.toFixed(2)
+  return state.amount === null ? placeholder : "$" + state.amount.toFixed(2)
 }

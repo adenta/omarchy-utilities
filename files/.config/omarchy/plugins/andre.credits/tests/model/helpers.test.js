@@ -12,21 +12,8 @@ function mocked(secret, response, run) {
     run({ ...process.env, PATH: dir + ':' + process.env.PATH, FIXTURE: response })
   } finally { fs.rmSync(dir, {recursive: true, force: true}) }
 }
-test('both helpers report missing credentials without fetching', () => {
+test('Deepgram helper reports missing credentials without fetching', () => {
   mocked('exit 1\n', '', env => {
-    for (const provider of ['deepgram', 'openrouter'])
-      eq(spawnSync('bash', [path.join(bin, provider + '-balance')], {env}).status, 3)
-  })
-})
-test('OpenRouter helper handles numeric, unlimited and malformed responses', () => {
-  for (const [fixture, output, status] of [
-    ['{"data":{"limit_remaining":0}}', '0', 0],
-    ['{"data":{"limit_remaining":75}}', '75', 0],
-    ['{"data":{"limit_remaining":null}}', 'unlimited', 0],
-    ['{"data":{}}', '', 5]
-  ]) mocked('printf fake-test-key\n', fixture, env => {
-    const result = spawnSync('bash', [path.join(bin, 'openrouter-balance')], {env, encoding: 'utf8'})
-    eq(result.status, status)
-    eq(result.stdout.trim(), output)
+    eq(spawnSync('bash', [path.join(bin, 'deepgram-balance')], {env}).status, 3)
   })
 })
