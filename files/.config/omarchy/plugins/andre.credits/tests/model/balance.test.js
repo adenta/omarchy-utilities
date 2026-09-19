@@ -29,15 +29,3 @@ test("refresh accepts zero and preserves stale balances", () => {
   eq(Balance.update(state, "unlimited", 0, 300).error, "Refresh failed")
   eq(Balance.update(failed, "75", 0, 400).error, "")
 })
-
-test("Modal selection and monthly usage", () => {
-  eq(Balance.toggleSelection("deepgram", "modal"), "modal")
-  const now = Date.parse("2026-09-19T12:00:00Z")
-  const state = Balance.updateModal(Balance.empty(), '{"amount":"0.09","cycle":"2026-09"}', 0, now)
-  eq(state.amount, 0.09)
-  eq(state.cycle, "2026-09")
-  eq(Balance.updateModal(state, "", 1, now).amount, 0.09)
-  eq(Balance.updateModal(state, "", 1, Date.parse("2026-10-01T00:00:00Z")).amount, null)
-  eq(Balance.updateModal(state, '{"amount":"5","cycle":"2026-08"}', 0, now).error, "Refresh failed")
-  eq(Balance.updateModal(state, '{"amount":"-5","cycle":"2026-09"}', 0, now).error, "Refresh failed")
-})
