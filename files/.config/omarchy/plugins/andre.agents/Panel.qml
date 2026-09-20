@@ -39,6 +39,7 @@ Panel {
   property bool showUpstreamDetails: false
   readonly property color paceOrange: colorLuminance(surface) > 0.5 ? "#a84b00" : "#ffb454"
   readonly property color paceRed: colorLuminance(surface) > 0.5 ? "#bd2028" : "#ff737b"
+  readonly property color paceGreen: colorLuminance(surface) > 0.5 ? "#2e7d32" : "#7ee787"
 
   Process {
     id: upstreamCheck
@@ -75,9 +76,13 @@ Panel {
     return 0
   }
   readonly property bool lightBar: colorLuminance(bar ? bar.background : Color.bar.background) > 0.5
-  readonly property color barPaceColor: barPaceLevel === 2
+  readonly property color barPaceColor: barPaceLevel === -1
+    ? (lightBar ? "#2e7d32" : "#7ee787")
+    : barPaceLevel === 1
+    ? (lightBar ? "#a84b00" : "#ffb454")
+    : barPaceLevel === 2
     ? (lightBar ? "#bd2028" : "#ff737b")
-    : (lightBar ? "#a84b00" : "#ffb454")
+    : root.urgent
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -378,8 +383,8 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.barPaceLevel > 0 ? "󱚝" : "󱚣"
-    active: root.barPaceLevel > 0 || root.alarming
-    activeColor: root.barPaceLevel > 0 ? root.barPaceColor : root.urgent
+    active: root.barPaceLevel !== 0 || root.alarming
+    activeColor: root.alarming ? root.urgent : root.barPaceColor
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
       else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)
@@ -772,7 +777,12 @@ Panel {
     readonly property bool paceEnabled: !!root.provider && root.provider.providerId === "codex" && window && window.weekly
     readonly property var pace: paceEnabled ? Pace.weekly(window.percent, window.resetAt, root.nowMs) : null
     readonly property bool alarming: window && window.percent >= 0.9
-    readonly property color meterColor: pace ? (pace.level === 2 ? root.paceRed : pace.level === 1 ? root.paceOrange : root.foreground) : alarming ? root.urgent : root.foreground
+    readonly property color meterColor: pace
+      ? (pace.level === 2 ? root.paceRed
+        : pace.level === 1 ? root.paceOrange
+        : pace.level === -1 ? root.paceGreen
+        : root.foreground)
+      : alarming ? root.urgent : root.foreground
 
     spacing: Style.space(6)
 
