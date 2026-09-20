@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Source: https://github.com/adenta/omarchy-utilities
+set -euo pipefail
+cd -- "$(dirname -- "$0")"
+unset VIRTUAL_ENV
+exec timeout 55s mise exec uv@0.12.15 -- uv run --no-project --with modal==1.5.5 modal-usage.py
