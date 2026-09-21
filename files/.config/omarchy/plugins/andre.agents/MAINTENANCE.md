@@ -14,6 +14,10 @@ bar's background; panel colors adapt to the popup. The warning remains visible
 when another provider is selected. Below pace is green, through five percentage
 points above target is normal, and unavailable pace uses the original excited
 robot, retaining existing low-balance and near-limit color alarms.
+Because the bar is transparent over the paired Darkman wallpapers, its below-
+pace green is `#8cff72` for Catppuccin Latte / `orb-day-blue` and `#004d2c`
+for Tokyo Night / `orb-night-short-fade`. The popup meter keeps its independent
+surface-aware green pair.
 The 30-second clock runs while the widget is visible, including with the panel
 closed, so the expression can recover as time passes. Usage refresh on opening
 is retained.
