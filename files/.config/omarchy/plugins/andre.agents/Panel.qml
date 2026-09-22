@@ -79,7 +79,7 @@ Panel {
   // The transparent bar sits on orb-day-blue in the light theme and on the
   // pale top strip of orb-night-short-fade in the dark theme. These colors
   // are deliberately opposite in luminance so the robot clears both images.
-  readonly property color barPaceGreen: lightBar ? "#8cff72" : "#004d2c"
+  readonly property color barPaceGreen: lightBar ? "#7dea68" : "#004d2c"
   readonly property color barPaceColor: barPaceLevel === -1
     ? root.barPaceGreen
     : barPaceLevel === 1

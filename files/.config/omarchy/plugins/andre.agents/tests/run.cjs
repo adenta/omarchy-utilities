@@ -9,7 +9,7 @@ const ctx = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(plugin,'Pace.js'),'utf8'),ctx);
 vm.runInContext(fs.readFileSync(path.join(plugin,'Upstream.js'),'utf8'),ctx);
 const panelSource=fs.readFileSync(path.join(plugin,'Panel.qml'),'utf8');
-assert.ok(panelSource.includes('readonly property color barPaceGreen: lightBar ? "#8cff72" : "#004d2c"'));
+assert.ok(panelSource.includes('readonly property color barPaceGreen: lightBar ? "#7dea68" : "#004d2c"'));
 assert.ok(panelSource.includes('barPaceLevel === -1\n    ? root.barPaceGreen'));
 assert.equal(ctx.classify(0,true,'current\n'),'current');
 assert.equal(ctx.classify(0,true,'changed'),'changed');
