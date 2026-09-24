@@ -1,0 +1,40 @@
+---
+- name: Create parents for managed system files
+  ansible.builtin.file:
+    path: "{{ item.dest | dirname }}"
+    state: directory
+  loop: "{{ desktop_system_files }}"
+  loop_control:
+    label: "{{ item.dest | dirname }}"
+  become: "{{ not ansible_check_mode }}"
+
+- name: Install managed system files
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    mode: preserve
+  loop: "{{ desktop_system_files }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  become: "{{ not ansible_check_mode }}"
+  register: desktop_system_copies
+
+- name: Remove host-excluded system files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ desktop_absent_system_files }}"
+  become: "{{ not ansible_check_mode }}"
+  register: desktop_system_removals
+
+- name: Queue Atop service reconciliation
+  ansible.builtin.debug:
+    msg: Atop configuration changed
+  changed_when: >-
+    {{
+      (desktop_system_copies.results
+       | selectattr('changed')
+       | selectattr('item.reload', 'equalto', 'atop')
+       | list | length) > 0
+    }}
+  notify: Restart Atop recording

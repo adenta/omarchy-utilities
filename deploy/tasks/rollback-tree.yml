@@ -1,0 +1,20 @@
+---
+- name: Move failed tree {{ rollback_tree.id }} aside
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -euo pipefail
+      destination={{ rollback_tree.dest | quote }}
+      failed={{ (rollback_tree.previous + '.failed') | quote }}
+      if [[ -e "$destination" ]]; then
+        mv -- "$destination" "$failed"
+      fi
+      if [[ -e {{ rollback_tree.previous | quote }} ]]; then
+        mv -- {{ rollback_tree.previous | quote }} "$destination"
+      fi
+  changed_when: true
+
+- name: Remove failed tree {{ rollback_tree.id }} after recovery
+  ansible.builtin.file:
+    path: "{{ rollback_tree.previous }}.failed"
+    state: absent

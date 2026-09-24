@@ -1,0 +1,36 @@
+---
+- name: Create persistent deployment state directory
+  ansible.builtin.file:
+    path: "{{ desktop_state_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Identify previously managed paths removed from the release
+  ansible.builtin.set_fact:
+    desktop_stale_managed_paths: >-
+      {{
+        (desktop_previous_receipt.managedPaths | default([]))
+        | difference(desktop_managed_paths)
+      }}
+
+- name: Remove paths previously owned by Omarchy Utilities
+  ansible.builtin.file:
+    path: "{{ expected_home }}/{{ item }}"
+    state: absent
+  loop: "{{ desktop_stale_managed_paths }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Record the successful desktop release
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schemaVersion': 1,
+          'revision': deployment_revision,
+          'profile': inventory_hostname,
+          'managedPaths': desktop_managed_paths
+        } | to_nice_json(indent=2)
+      }}
+    dest: "{{ desktop_state_dir }}/receipt.json"
+    mode: "0600"

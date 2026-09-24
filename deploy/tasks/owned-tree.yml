@@ -1,0 +1,208 @@
+---
+- name: Inspect source tree {{ tree.id }}
+  ansible.builtin.stat:
+    path: "{{ repo_root }}/{{ tree.source }}"
+  delegate_to: localhost
+  become: false
+  register: owned_tree_source_stat
+  when: tree.state | default('present') == 'present'
+
+- name: Require source tree {{ tree.id }}
+  ansible.builtin.assert:
+    that:
+      - owned_tree_source_stat.stat.isdir
+    fail_msg: "Missing repository-owned tree: {{ tree.source }}"
+  when: tree.state | default('present') == 'present'
+
+- name: Hash source tree {{ tree.id }}
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -o
+      - pipefail
+      - -c
+      - >-
+        tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner
+        -cf - . | sha256sum | cut -d ' ' -f 1
+  args:
+    chdir: "{{ repo_root }}/{{ tree.source }}"
+  delegate_to: localhost
+  become: false
+  register: owned_tree_source_hash_result
+  changed_when: false
+  check_mode: false
+  when: tree.state | default('present') == 'present'
+
+- name: Inspect installed tree {{ tree.id }}
+  ansible.builtin.stat:
+    path: "{{ expected_home }}/{{ tree.dest }}"
+  register: owned_tree_dest_stat
+
+- name: Hash installed tree {{ tree.id }}
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -o
+      - pipefail
+      - -c
+      - >-
+        tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner
+        -cf - . | sha256sum | cut -d ' ' -f 1
+  args:
+    chdir: "{{ expected_home }}/{{ tree.dest }}"
+  register: owned_tree_dest_hash_result
+  changed_when: false
+  check_mode: false
+  when: owned_tree_dest_stat.stat.isdir | default(false)
+
+- name: Decide whether tree {{ tree.id }} changes
+  ansible.builtin.set_fact:
+    owned_tree_needs_change: >-
+      {{
+        (tree.state | default('present') == 'absent' and owned_tree_dest_stat.stat.exists)
+        or
+        (tree.state | default('present') == 'present' and
+          ((not owned_tree_dest_stat.stat.isdir | default(false)) or
+           (owned_tree_source_hash_result.stdout | trim !=
+            owned_tree_dest_hash_result.stdout | default('') | trim)))
+      }}
+    owned_tree_stage: "{{ desktop_state_dir }}/transactions/{{ tree.id }}.next"
+    owned_tree_previous: "{{ desktop_state_dir }}/transactions/{{ tree.id }}.previous"
+
+- name: Preview tree {{ tree.id }}
+  ansible.builtin.debug:
+    msg: >-
+      {{ tree.dest }} will be {{ 'removed' if tree.state | default('present') == 'absent'
+      else 'replaced from ' + tree.source }}.
+  changed_when: owned_tree_needs_change
+  when: ansible_check_mode and owned_tree_needs_change
+
+- name: Inspect transaction paths for {{ tree.id }}
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ owned_tree_stage }}"
+    - "{{ owned_tree_previous }}"
+  register: owned_tree_transaction_paths
+  when: owned_tree_needs_change and not ansible_check_mode
+
+- name: Refuse stale transaction paths for {{ tree.id }}
+  ansible.builtin.assert:
+    that:
+      - not owned_tree_transaction_paths.results[0].stat.exists
+      - not owned_tree_transaction_paths.results[1].stat.exists
+    fail_msg: >-
+      A previous {{ tree.id }} transaction remains below
+      {{ desktop_state_dir }}/transactions. Inspect and recover it before retrying.
+  when: owned_tree_needs_change and not ansible_check_mode
+
+- name: Create transaction storage for {{ tree.id }}
+  ansible.builtin.file:
+    path: "{{ desktop_state_dir }}/transactions"
+    state: directory
+    mode: "0700"
+  when: owned_tree_needs_change and not ansible_check_mode
+
+- name: Create staging tree {{ tree.id }}
+  ansible.builtin.file:
+    path: "{{ owned_tree_stage }}"
+    state: directory
+    mode: "0755"
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - tree.state | default('present') == 'present'
+
+- name: Stage complete tree {{ tree.id }}
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/{{ tree.source }}/"
+    dest: "{{ owned_tree_stage }}/"
+    mode: preserve
+    directory_mode: "0755"
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - tree.state | default('present') == 'present'
+
+- name: Validate staged plugin {{ tree.id }}
+  ansible.builtin.command:
+    argv: [omarchy, plugin, validate, "{{ owned_tree_stage }}"]
+  changed_when: false
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - tree.plugin | default(false)
+
+- name: Hash staged tree {{ tree.id }}
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -o
+      - pipefail
+      - -c
+      - >-
+        tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner
+        -cf - . | sha256sum | cut -d ' ' -f 1
+  args:
+    chdir: "{{ owned_tree_stage }}"
+  register: owned_tree_stage_hash_result
+  changed_when: false
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - tree.state | default('present') == 'present'
+
+- name: Verify staged tree {{ tree.id }}
+  ansible.builtin.assert:
+    that:
+      - owned_tree_stage_hash_result.stdout | trim == owned_tree_source_hash_result.stdout | trim
+    fail_msg: "The staged {{ tree.id }} tree does not match its repository source."
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - tree.state | default('present') == 'present'
+
+- name: Activate tree {{ tree.id }}
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -euo pipefail
+      destination={{ (expected_home + '/' + tree.dest) | quote }}
+      staged={{ owned_tree_stage | quote }}
+      previous={{ owned_tree_previous | quote }}
+      if [[ -e "$destination" ]]; then
+        mv -- "$destination" "$previous"
+      fi
+      if [[ {{ (tree.state | default('present') == 'present') | ternary('1', '0') }} == 1 ]]; then
+        if ! mv -- "$staged" "$destination"; then
+          if [[ -e "$previous" && ! -e "$destination" ]]; then
+            mv -- "$previous" "$destination"
+          fi
+          exit 1
+        fi
+      fi
+  changed_when: true
+  when: owned_tree_needs_change and not ansible_check_mode
+
+- name: Remember deferred tree transaction {{ tree.id }}
+  ansible.builtin.set_fact:
+    changed_trees: >-
+      {{ changed_trees + [{
+        'id': tree.id,
+        'dest': expected_home + '/' + tree.dest,
+        'previous': owned_tree_previous,
+        'had_previous': owned_tree_dest_stat.stat.exists
+      }] }}
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - defer_tree_cleanup | default(false)
+
+- name: Remove completed previous tree {{ tree.id }}
+  ansible.builtin.file:
+    path: "{{ owned_tree_previous }}"
+    state: absent
+  when:
+    - owned_tree_needs_change
+    - not ansible_check_mode
+    - not defer_tree_cleanup | default(false)

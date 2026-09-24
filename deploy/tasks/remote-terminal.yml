@@ -1,0 +1,117 @@
+---
+- name: Confirm the intended Grace agent account
+  ansible.builtin.assert:
+    that:
+      - ansible_hostname == expected_hostname
+      - ansible_user_id == expected_user
+      - ansible_user_uid | int == expected_uid
+      - ansible_env.HOME == expected_home
+      - ansible_architecture == expected_architecture
+    fail_msg: >-
+      Refusing to deploy remote terminal files to
+      {{ ansible_user_id }}@{{ ansible_hostname }} ({{ ansible_env.HOME }}).
+
+- name: Check Grace agent terminal dependencies
+  ansible.builtin.command:
+    argv: [bash, -c, "command -v -- {{ item }}"]
+  loop: "{{ agent_required_commands }}"
+  changed_when: false
+  check_mode: false
+
+- name: Create Grace agent tmux configuration directory
+  ansible.builtin.file:
+    path: "{{ expected_home }}/.config/tmux"
+    state: directory
+
+- name: Install Grace agent remote terminal files
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/examples/remote-codex-terminal/{{ item }}"
+    dest: "{{ expected_home }}/.config/tmux/{{ item }}"
+    mode: "0644"
+  loop:
+    - codex.conf
+    - codex-paste.pl
+    - codex-startup.bash
+
+- name: Load remote terminal startup from the active login file
+  ansible.builtin.lineinfile:
+    path: "{{ expected_home }}/.bash_profile"
+    regexp: '^\[\[ -r "\$HOME/\.config/tmux/codex-startup\.bash" \]\] && source '
+    line: '[[ -r "$HOME/.config/tmux/codex-startup.bash" ]] && source "$HOME/.config/tmux/codex-startup.bash"'
+    create: true
+
+- name: Create Grace agent deployment state directory
+  ansible.builtin.file:
+    path: "{{ expected_home }}/{{ deployment_state_rel }}"
+    state: directory
+    mode: "0700"
+  when: "'all' in ansible_run_tags"
+
+- name: Record Grace agent remote terminal release
+  ansible.builtin.copy:
+    content: >-
+      {{
+        {
+          'schemaVersion': 1,
+          'revision': deployment_revision,
+          'profile': inventory_hostname,
+          'managedPaths': [
+            '.config/tmux/codex.conf',
+            '.config/tmux/codex-paste.pl',
+            '.config/tmux/codex-startup.bash'
+          ],
+          'managedBlocks': ['.bash_profile:remote-codex-terminal']
+        } | to_nice_json(indent=2)
+      }}
+    dest: "{{ expected_home }}/{{ deployment_state_rel }}/receipt.json"
+    mode: "0600"
+  when: "'all' in ansible_run_tags"
+
+- name: Record the source revision beside the terminal integration
+  ansible.builtin.copy:
+    content: |
+      Managed by omarchy-utilities Ansible deployment.
+      Revision: {{ deployment_revision }}
+      Existing tmux sessions are intentionally not restarted.
+    dest: "{{ expected_home }}/.config/tmux/SOURCE.remote-codex.md"
+    mode: "0644"
+
+- name: Verify the installed Grace terminal integration
+  when: not ansible_check_mode
+  block:
+    - name: Create private remote terminal validation directory
+      ansible.builtin.file:
+        path: "{{ expected_home }}/{{ deployment_state_rel }}/validation"
+        state: directory
+        mode: "0700"
+
+    - name: Stage remote terminal validation scripts
+      ansible.builtin.copy:
+        src: "{{ repo_root }}/tests/{{ item }}"
+        dest: "{{ expected_home }}/{{ deployment_state_rel }}/validation/{{ item }}"
+        mode: "0600"
+      loop:
+        - remote-terminal.cjs
+        - remote-terminal-scroll.cjs
+
+    - name: Test Grace clipboard and terminal lifecycle
+      ansible.builtin.command:
+        argv:
+          - node
+          - "{{ expected_home }}/{{ deployment_state_rel }}/validation/remote-terminal.cjs"
+      changed_when: false
+
+    - name: Test Grace scrolling and selection
+      ansible.builtin.command:
+        argv:
+          - node
+          - "{{ expected_home }}/{{ deployment_state_rel }}/validation/remote-terminal-scroll.cjs"
+          - local
+          - "{{ expected_home }}/.config/tmux/codex.conf"
+      changed_when: false
+
+  always:
+    - name: Remove remote terminal validation files
+      ansible.builtin.file:
+        path: "{{ expected_home }}/{{ deployment_state_rel }}/validation"
+        state: absent

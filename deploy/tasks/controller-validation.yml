@@ -1,0 +1,73 @@
+---
+- name: Confirm deployment is running from the canonical XPS checkout
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.pipe', 'hostname') | trim == 'xps13-2026'
+      - lookup('ansible.builtin.env', 'USER') == 'andre'
+      - repo_root == '/home/andre/Projects/omarchy-utilities'
+    fail_msg: >-
+      Run this deployment as andre from /home/andre/Projects/omarchy-utilities
+      on xps13-2026.
+
+- name: Inspect the controller working tree
+  ansible.builtin.command:
+    argv: [git, status, --porcelain, --untracked-files=all]
+  args:
+    chdir: "{{ repo_root }}"
+  register: controller_git_status
+  changed_when: false
+  check_mode: false
+
+- name: Require a committed release
+  ansible.builtin.assert:
+    that:
+      - controller_git_status.stdout | trim == ''
+    fail_msg: >-
+      Commit or remove every working-tree change before deployment. The
+      playbook records and deploys one reproducible Git revision.
+
+- name: Read the release revision
+  ansible.builtin.command:
+    argv: [git, rev-parse, HEAD]
+  args:
+    chdir: "{{ repo_root }}"
+  register: controller_revision_result
+  changed_when: false
+  check_mode: false
+
+- name: Save the release revision
+  ansible.builtin.set_fact:
+    deployment_revision: "{{ controller_revision_result.stdout | trim }}"
+
+- name: Run repository validation
+  ansible.builtin.command:
+    argv: [bash, -c, "{{ item }}"]
+  args:
+    chdir: "{{ repo_root }}"
+  loop:
+    - node files/.config/omarchy/plugins/andre.system-pulse/tests/run.js
+    - node files/.config/omarchy/plugins/andre.backups/tests/run.js
+    - node files/.config/omarchy/plugins/andre.credits/tests/run.js
+    - node files/.config/omarchy/plugins/andre.agents/tests/run.cjs
+    - node files/.config/omarchy/plugins/andre.background/tests/run.cjs
+    - node files/.config/omarchy/plugins/andre.clock/tests/run.cjs
+    - node files/.config/omarchy/plugins/andre.idle/tests/run.cjs
+    - node files/.config/omarchy/plugins/andre.lock/tests/run.cjs
+    - node files/.config/omarchy/plugins/andre.power/tests/run.cjs
+    - bash tests/backup-policy.sh
+    - bash tests/backup-size.sh
+    - node tests/pokemon-screensaver.js
+    - node tools/normalize-pokemon.mjs --check
+    - node tests/pokemon-centering.js
+    - node tests/pokemon-effects.js
+    - >-
+      find files -type f -perm -0100 -print0 |
+      xargs -0 -r -n1 bash -n
+    - >-
+      find files/.config/omarchy/plugins -mindepth 1 -maxdepth 1
+      -type d -name 'andre.*' -print0 |
+      xargs -0 -r -n1 omarchy plugin validate
+  loop_control:
+    label: "{{ item }}"
+  changed_when: false
+  check_mode: false

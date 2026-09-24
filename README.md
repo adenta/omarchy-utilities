@@ -1,16 +1,42 @@
 # Omarchy utilities
 
 Shared personal desktop customizations for XPS and Grace, initially imported
-from a working Omarchy 4.0.3 installation. One source repository, ordinary file
-copying, and agents following [AGENTS.md](AGENTS.md). There is no installer,
-machine-profile framework, deployment daemon, or automatic updater.
+from a working Omarchy 4.0.3 installation. The repository-owned Ansible
+playbook is the single deployment path. There is no deployment daemon or
+automatic updater.
 
-The normal checkout is `~/Projects/omarchy-utilities`. Edit here, test, commit and
-push, then copy the changed files to both computers. Files beneath `files/` map
-directly to the same relative path beneath the desktop user's home. Files beneath
-`system/` map beneath `/` and require the established administrator connection.
-Inspect diffs and save private rollback copies first. Never copy `examples/`
-directly over existing configuration.
+The canonical checkout is `~/Projects/omarchy-utilities` on XPS. Files beneath
+`files/` map to explicitly listed paths beneath the desktop user's home; files
+beneath `system/` map to explicitly listed paths beneath `/`. Host profiles keep
+XPS-only lock, power, PAM, and VoxType integration off Grace. Never copy
+`examples/` as a generic overlay.
+
+## Deployment
+
+Install the pinned controller toolchain, preview the clean committed revision,
+then deploy XPS followed by Grace:
+
+```sh
+mise install
+mise exec -- ansible-playbook deploy/site.yml --syntax-check
+mise exec -- ansible-playbook deploy/site.yml --check --diff
+mise exec -- ansible-playbook deploy/site.yml --ask-become-pass
+```
+
+Use `--limit xps-desktop`, `--limit grace-desktop`, or `--limit grace-agent`
+for one account. Component tags are `desktop`, `hypr`, `services`, `shell`,
+`system`, and `remote-terminal`. A complete untagged deployment records the
+revision and narrow managed-path list in
+`~/.local/state/omarchy-utilities/receipt.json`; it never stores credentials or
+mutable application data.
+
+The playbook verifies machine/account identity and dependencies, runs the
+repository tests once on XPS, stages complete owned trees, validates plugins,
+and activates one machine at a time. Plugin changes use a full
+`omarchy restart shell`; Hyprland changes reload and must report no configuration
+errors. Temporary previous trees exist only during activation and are restored
+if verification fails. Run from an unlocked desktop and quit LocalSend first
+only when its minimize-to-tray preference needs repair.
 
 ## Components
 
@@ -23,7 +49,7 @@ directly over existing configuration.
 | Themes and night light | `files/.local/share/darkman/`, `files/.config/omarchy/hooks/`, the two orb wallpapers, and `hyprsunset.conf` | Darkman, Omarchy, Hyprsunset; check light/dark transitions and night-light temperature. Darkman's location stays local. |
 | Pokémon screensaver | `files/.local/bin/omarchy-pokemon-*`, `files/.local/share/omarchy-pokemon-screensaver/`, `files/.config/omarchy/screensaver/`, `andre.idle` | Omarchy renderer/ttfx and a supported terminal; verify launch, exit, and artwork cycling. Keep rotation state local. |
 | Terminal preferences | `files/.config/{alacritty,foot,ghostty,kitty}/` | Install preferences only for the intended terminals. Preserve generated theme files and machine-specific terminal selection. |
-| Codex terminal shortcuts | `files/.config/tmux/codex.conf`, `files/.local/libexec/codex-terminal-clipboard` | Existing Omarchy tmux config, tmux, wl-clipboard; merge the bash startup fragment below. |
+| Codex terminal shortcuts | `files/.config/tmux/codex.conf`, `files/.local/libexec/codex-terminal-clipboard` | Existing Omarchy tmux config, tmux, wl-clipboard; Ansible owns the narrow Bash block below. |
 | Remote Codex terminals (Grace agent account) | [Account-specific files and instructions](examples/remote-codex-terminal/README.md) | tmux 3.7 and Perl; automatic startup, remote clipboard, scrolling, and disconnect cleanup. Keep separate from Andre’s desktop config. |
 | Home backups | `files/.local/bin/omarchy-backup`, `files/.local/lib/omarchy-backup/`, three user systemd units | Restic, jq, curl, libsecret, util-linux, libnotify; run `bash tests/backup-policy.sh`, first backup, repository check, and sample restore. See [backup setup](docs/backups.md). |
 | Performance recording | `system/etc/default/atop` and three systemd drop-ins | Atop; 600-second samples, seven generations; verify current log and enabled recorder/rotation units. |
@@ -39,23 +65,21 @@ labels pace, and turns orange/red when usage exceeds that allowance. The header
 indicates installed stock-widget changes that need review; it does not fetch or
 install updates. See the plugin's `MAINTENANCE.md` for baseline handling.
 
-Deploy only this plugin's committed files, preserving account data in each
-machine's local state directory. Run `omarchy-shell shell rescanPlugins`, then
-`omarchy plugin enable andre.agents` to replace the existing stock slot while
-preserving the rest of the local bar configuration. Saved changes normally
-hot-reload; restart the shell only if the old code remains cached. Verify the
-plugin, pace tests, and stock baseline on both machines. Different stock Omarchy
-versions may legitimately show the review icon on only one machine.
+The playbook deploys only this plugin's committed tree and preserves account
+data in each machine's local state directory. It restarts the shell after plugin
+activation, avoiding stale QML component caches, then verifies shell IPC.
+Different stock Omarchy versions may legitimately show the review icon on only
+one machine.
 
-## Personal integration
+## Managed personal integration
 
-- Merge `examples/shell.json` into the local shell configuration. Preserve the
+- The playbook merges its owned shell fields into the local configuration. Preserve the
   laptop's `andre.power` panel on XPS; Grace uses stock `omarchy.power`. Reference
   `adenta.codex-ops` only where Codex Ops has installed it; do not copy its code.
-- Merge the screensaver entry from `examples/omarchy-menu.jsonc` into the existing
-  menu. Preserve unrelated entries. `andre.idle` and `andre.background` replace
+- It installs the screensaver entry from `examples/omarchy-menu.jsonc` as the
+  managed menu extension. `andre.idle` and `andre.background` replace
   the corresponding stock services; keep the matching disabled-plugin entries.
-- Add `require("hypr.omarchy-utilities")` once to the end of `hyprland.lua`.
+- It adds `require("hypr.omarchy-utilities")` once to the end of `hyprland.lua`.
   Remove previous copies of the same shared rules/bindings to avoid duplicate
   callbacks. Keep local monitor, touchpad, Slack, and Touch Divider settings.
 - The shared rules place Codex on workspace 1, open Files centered at 875×600,
@@ -65,13 +89,13 @@ versions may legitimately show the review icon on only one machine.
   saved window size. Caps Lock works normally;
   Super+Ctrl+Space opens emoji, Alt+Shift+4 captures a screenshot, and Super+A
   forwards select-all.
-- To start Codex at login, add `o.launch_on_start("chatgpt")` to local autostart
-  if absent. Do not copy XPS's entire autostart file.
+- It manages `o.launch_on_start("chatgpt")` as a narrow block in local
+  autostart. It does not copy XPS's entire autostart file.
 - Enable Darkman's existing user service. Keep its local latitude/longitude and
   portal preferences in `~/.config/darkman/config.yaml`. The shared hooks select
   Catppuccin Latte by day, Tokyo Night at night, and matching orb backgrounds.
 
-Before Omarchy's interactive shell setup in `.bashrc`, merge:
+Before Omarchy's interactive shell setup in `.bashrc`, Ansible manages:
 
 ```bash
 if [[ -z ${TMUX-} && -t 0 && -t 1 && -r /proc/$PPID/comm &&
@@ -87,12 +111,12 @@ or Codex Ops. Verify copy, paste, select-all, and Ctrl+C interruption.
 
 ### LocalSend and file dialogs
 
-Apply these preferences on both XPS and Grace.
+The playbook applies these preferences on both XPS and Grace.
 
-- Install the LocalSend desktop entry in `~/.config/autostart/`. Inspect and
-  back up any existing LocalSend entries first; keep only one enabled entry.
+- It installs the LocalSend desktop entry in `~/.config/autostart/` and keeps
+  the repository-named entry authoritative.
   Older installations may use `org.localsend.localsend_app.desktop` instead.
-  Run `systemctl --user daemon-reload` after copying. Omarchy's existing XDG
+  Ansible reloads the user manager after changes. Omarchy's existing XDG
   autostart target runs it at desktop login; no extra service is needed.
 - Enable **Minimize to tray** in LocalSend. The local preference is
   `flutter.ls_minimize_to_tray=true` in
@@ -107,9 +131,8 @@ Apply these preferences on both XPS and Grace.
   LocalSend, check its centered 875×600 window, then close it and confirm the
   receiver still answers from the other computer. No reboot is required to
   test the entry's command; the next login exercises session startup itself.
-- For the picker, save the current `startup-mode` values from both
+- For the picker, it manages only `startup-mode` in
   `org.gtk.Settings.FileChooser` and `org.gtk.gtk4.Settings.FileChooser`.
-  Merge only the two settings with `dconf load / < examples/file-chooser.dconf`.
   This preserves other chooser preferences, including sorting and hidden files.
 - Install the GTK portal drop-in, ensure `~/Downloads` exists, and run
   `systemctl --user daemon-reload`. Restart
@@ -127,12 +150,9 @@ settings, and build were removed from active locations; keep the source here for
 that future setup. XPS dictation remains installed. The Deepgram credential on
 Grace remains local for the shared credits panel.
 
-When resuming Grace setup, use Hyprland shortcuts without raw input-device access. Add
-`require("hypr.voxtype-shortcuts")` once to local `hyprland.lua`, and copy
-`examples/voxtype-compositor.conf` to
-`~/.config/systemd/user/voxtype-deepgram.service.d/shortcuts.conf`.
-Reload Hyprland, reload user systemd units, and enable/start
-`voxtype-deepgram.service`. Insert toggles recording; Escape cancels and also
+When resuming Grace setup, update its Ansible host profile to enable the shared
+Hyprland shortcut module and install `examples/voxtype-compositor.conf` as the
+service override. Insert toggles recording; Escape cancels and also
 reaches the focused application. Shift+Insert remains available for pasting.
 XPS keeps its existing evdev hotkeys; do not load this optional module there
 unless intentionally switching methods. The module's source is copied to both
@@ -156,7 +176,7 @@ node tests/pokemon-effects.js
 ```
 
 Use `omarchy plugin validate PATH` for changed plugins, `bash -n` for changed
-shell files, and inspect the affected feature in the live desktop after copying.
+shell files, and inspect the affected feature in the live desktop after deployment.
 For window changes, run `hyprctl reload` and `hyprctl configerrors`, then check
 Chromium on both empty and occupied workspaces and LocalSend. Save and restore
 the user's original workspace; close only test windows created by the task.

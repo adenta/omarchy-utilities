@@ -1,0 +1,10 @@
+---
+expected_hostname: grace
+expected_user: agent
+expected_uid: 1001
+expected_home: /home/agent
+expected_architecture: x86_64
+agent_required_commands:
+  - bash
+  - perl
+  - tmux

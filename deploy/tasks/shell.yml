@@ -1,0 +1,115 @@
+---
+- name: Read the current Omarchy shell configuration
+  ansible.builtin.slurp:
+    path: "{{ expected_home }}/.config/omarchy/shell.json"
+  register: shell_config_source
+
+- name: Build the host-specific Omarchy shell configuration
+  ansible.builtin.set_fact:
+    shell_config_original_text: "{{ shell_config_source.content | b64decode }}"
+    shell_config_current: "{{ shell_config_source.content | b64decode | from_json }}"
+
+- name: Merge authoritative shell fields with unrelated local fields
+  ansible.builtin.set_fact:
+    shell_config_desired: >-
+      {{ shell_config_current | combine(shell_managed_config, recursive=true, list_merge='replace') }}
+    shell_config_needs_change: >-
+      {{
+        (shell_config_current | combine(shell_managed_config, recursive=true, list_merge='replace'))
+        != shell_config_current
+      }}
+
+- name: Confirm the shell is unlocked before a possible restart
+  ansible.builtin.command:
+    argv: [omarchy-shell, lock, isLocked]
+  register: shell_lock_state
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require an unlocked shell for live activation
+  ansible.builtin.assert:
+    that:
+      - ansible_check_mode or shell_lock_state.stdout | trim == 'false'
+    fail_msg: Unlock the desktop before deploying Omarchy shell configuration.
+
+- name: Activate shell configuration and plugins transactionally
+  block:
+    - name: Write host-specific shell configuration
+      ansible.builtin.copy:
+        content: "{{ shell_config_desired | to_nice_json(indent=2) }}\n"
+        dest: "{{ expected_home }}/.config/omarchy/shell.json"
+        mode: "0644"
+      register: shell_config_copy
+
+    - name: Deploy desired shell plugin trees
+      ansible.builtin.include_tasks: owned-tree.yml
+      loop: "{{ desktop_trees }}"
+      loop_control:
+        loop_var: tree
+        label: "{{ tree.id }}"
+      vars:
+        defer_tree_cleanup: true
+
+    - name: Restart the Omarchy shell once after activation
+      ansible.builtin.command:
+        argv: [omarchy, restart, shell]
+      changed_when: true
+      when:
+        - not ansible_check_mode
+        - shell_config_copy.changed or changed_trees | length > 0
+
+    - name: Verify the Omarchy shell is responsive
+      ansible.builtin.command:
+        argv: [omarchy-shell, shell, ping]
+      register: shell_ping
+      changed_when: false
+      retries: 20
+      delay: 1
+      until: shell_ping.rc == 0
+      when:
+        - not ansible_check_mode
+        - shell_config_copy.changed or changed_trees | length > 0
+
+    - name: Remove verified previous plugin trees
+      ansible.builtin.file:
+        path: "{{ item.previous }}"
+        state: absent
+      loop: "{{ changed_trees }}"
+      loop_control:
+        label: "{{ item.id }}"
+      when: not ansible_check_mode
+
+    - name: Remove completed shell transaction storage
+      ansible.builtin.file:
+        path: "{{ desktop_state_dir }}/transactions"
+        state: absent
+      when:
+        - not ansible_check_mode
+        - changed_trees | length > 0
+
+  rescue:
+    - name: Restore previous plugin trees
+      ansible.builtin.include_tasks: rollback-tree.yml
+      loop: "{{ changed_trees | reverse | list }}"
+      loop_control:
+        loop_var: rollback_tree
+        label: "{{ rollback_tree.id }}"
+
+    - name: Restore the previous shell configuration
+      ansible.builtin.copy:
+        content: "{{ shell_config_original_text }}"
+        dest: "{{ expected_home }}/.config/omarchy/shell.json"
+        mode: "0644"
+      when: shell_config_copy.changed | default(false)
+
+    - name: Restart the restored Omarchy shell
+      ansible.builtin.command:
+        argv: [omarchy, restart, shell]
+      changed_when: true
+
+    - name: Stop after restoring failed shell activation
+      ansible.builtin.fail:
+        msg: >-
+          Omarchy shell activation failed. The previous shell.json and plugin
+          trees were restored; inspect the failure before retrying.

@@ -1,0 +1,117 @@
+---
+repo_root: "{{ playbook_dir | dirname }}"
+deployment_state_rel: .local/state/omarchy-utilities
+deployment_revision: >-
+  {{
+    lookup('ansible.builtin.pipe', 'git -C ' ~ repo_root ~ ' rev-parse HEAD')
+    | trim
+  }}
+
+desktop_required_commands:
+  - bash
+  - curl
+  - darkman
+  - dconf
+  - hyprctl
+  - jq
+  - localsend
+  - node
+  - omarchy
+  - restic
+  - secret-tool
+  - systemctl
+  - tmux
+  - ttfx
+  - wl-copy
+
+desktop_shared_trees:
+  - id: plugin-andre-agents
+    source: files/.config/omarchy/plugins/andre.agents
+    dest: .config/omarchy/plugins/andre.agents
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-background
+    source: files/.config/omarchy/plugins/andre.background
+    dest: .config/omarchy/plugins/andre.background
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-backups
+    source: files/.config/omarchy/plugins/andre.backups
+    dest: .config/omarchy/plugins/andre.backups
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-bar
+    source: files/.config/omarchy/plugins/andre.bar
+    dest: .config/omarchy/plugins/andre.bar
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-clock
+    source: files/.config/omarchy/plugins/andre.clock
+    dest: .config/omarchy/plugins/andre.clock
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-credits
+    source: files/.config/omarchy/plugins/andre.credits
+    dest: .config/omarchy/plugins/andre.credits
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-idle
+    source: files/.config/omarchy/plugins/andre.idle
+    dest: .config/omarchy/plugins/andre.idle
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-system-pulse
+    source: files/.config/omarchy/plugins/andre.system-pulse
+    dest: .config/omarchy/plugins/andre.system-pulse
+    plugin: true
+    restart_shell: true
+
+desktop_shared_content_trees:
+  - id: omarchy-screensaver
+    source: files/.config/omarchy/screensaver
+    dest: .config/omarchy/screensaver
+  - id: backup-library
+    source: files/.local/lib/omarchy-backup
+    dest: .local/lib/omarchy-backup
+  - id: pokemon-screensaver
+    source: files/.local/share/omarchy-pokemon-screensaver
+    dest: .local/share/omarchy-pokemon-screensaver
+
+desktop_shared_files:
+  - { source: files/.config/alacritty/alacritty.toml, dest: .config/alacritty/alacritty.toml, reload: none }
+  - { source: files/.config/autostart/localsend_app.desktop, dest: .config/autostart/localsend_app.desktop, reload: none }
+  - { source: files/.config/foot/foot.ini, dest: .config/foot/foot.ini, reload: none }
+  - { source: files/.config/ghostty/config, dest: .config/ghostty/config, reload: none }
+  - { source: files/.config/hypr/hyprsunset.conf, dest: .config/hypr/hyprsunset.conf, reload: hyprsunset }
+  - { source: files/.config/hypr/omarchy-utilities.lua, dest: .config/hypr/omarchy-utilities.lua, reload: hypr }
+  - { source: files/.config/hypr/voxtype-shortcuts.lua, dest: .config/hypr/voxtype-shortcuts.lua, reload: none }
+  - { source: files/.config/kitty/kitty.conf, dest: .config/kitty/kitty.conf, reload: none }
+  - { source: files/.config/omarchy/README.utilities.md, dest: .config/omarchy/README.utilities.md, reload: none }
+  - { source: files/.config/omarchy/backgrounds/auto/orb-day-blue.png, dest: .config/omarchy/backgrounds/auto/orb-day-blue.png, reload: none }
+  - { source: files/.config/omarchy/backgrounds/auto/orb-night-short-fade.png, dest: .config/omarchy/backgrounds/auto/orb-night-short-fade.png, reload: none }
+  - { source: files/.config/omarchy/hooks/post-boot.d/sync-nightlight, dest: .config/omarchy/hooks/post-boot.d/sync-nightlight, reload: none }
+  - { source: files/.config/omarchy/hooks/theme-set.d/hide-catppuccin-latte-color-fade, dest: .config/omarchy/hooks/theme-set.d/hide-catppuccin-latte-color-fade, reload: none }
+  - { source: files/.config/omarchy/hooks/theme-set.d/keep-orb-background, dest: .config/omarchy/hooks/theme-set.d/keep-orb-background, reload: none }
+  - { source: examples/omarchy-menu.jsonc, dest: .config/omarchy/extensions/omarchy-menu.jsonc, reload: none }
+  - { source: files/.config/systemd/user/darkman.service.d/override.conf, dest: .config/systemd/user/darkman.service.d/override.conf, reload: darkman }
+  - { source: files/.config/systemd/user/omarchy-backup-manual.service, dest: .config/systemd/user/omarchy-backup-manual.service, reload: backup }
+  - { source: files/.config/systemd/user/omarchy-backup.service, dest: .config/systemd/user/omarchy-backup.service, reload: backup }
+  - { source: files/.config/systemd/user/omarchy-backup.timer, dest: .config/systemd/user/omarchy-backup.timer, reload: backup }
+  - { source: files/.config/systemd/user/xdg-desktop-portal-gtk.service.d/90-downloads-default.conf, dest: .config/systemd/user/xdg-desktop-portal-gtk.service.d/90-downloads-default.conf, reload: portal }
+  - { source: files/.config/tmux/codex.conf, dest: .config/tmux/codex.conf, reload: none }
+  - { source: files/.local/bin/omarchy-backup, dest: .local/bin/omarchy-backup, reload: none }
+  - { source: files/.local/bin/omarchy-pokemon-screensaver, dest: .local/bin/omarchy-pokemon-screensaver, reload: none }
+  - { source: files/.local/bin/omarchy-pokemon-select, dest: .local/bin/omarchy-pokemon-select, reload: none }
+  - { source: files/.local/libexec/codex-terminal-clipboard, dest: .local/libexec/codex-terminal-clipboard, reload: none }
+  - { source: files/.local/share/darkman/omarchy-nightlight, dest: .local/share/darkman/omarchy-nightlight, reload: none }
+  - { source: files/.local/share/darkman/omarchy-theme, dest: .local/share/darkman/omarchy-theme, reload: none }
+
+desktop_common_system_files:
+  - { source: system/etc/default/atop, dest: /etc/default/atop, reload: atop }
+  - { source: system/etc/systemd/system/atop.service.d/recording.conf, dest: /etc/systemd/system/atop.service.d/recording.conf, reload: atop }
+  - { source: system/etc/systemd/system/atopacct.service.d/recording.conf, dest: /etc/systemd/system/atopacct.service.d/recording.conf, reload: atop }
+  - { source: system/etc/systemd/system/atop-rotate.timer.d/recording.conf, dest: /etc/systemd/system/atop-rotate.timer.d/recording.conf, reload: atop }
+
+gtk_dconf_values:
+  /org/gtk/settings/file-chooser/startup-mode: "'cwd'"
+  /org/gtk/gtk4/settings/file-chooser/startup-mode: "'cwd'"

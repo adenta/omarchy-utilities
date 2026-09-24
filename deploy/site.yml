@@ -1,0 +1,59 @@
+---
+- name: Validate the release on the XPS controller
+  hosts: deployment_targets
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Run controller validation once for the selected targets
+      ansible.builtin.import_tasks: tasks/controller-validation.yml
+      run_once: true
+      delegate_to: localhost
+      tags: [always]
+
+- name: Deploy Omarchy utilities to desktop accounts
+  hosts: omarchy_desktops
+  gather_facts: true
+  become: false
+  serial: 1
+  any_errors_fatal: true
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ expected_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ expected_uid }}/bus"
+  handlers:
+    - ansible.builtin.import_tasks: handlers/main.yml
+  tasks:
+    - name: Validate the desktop target
+      ansible.builtin.import_tasks: tasks/desktop-preflight.yml
+      tags: [always]
+
+    - name: Deploy ordinary desktop files and integration
+      ansible.builtin.import_tasks: tasks/desktop-files.yml
+      tags: [desktop, hypr, services]
+
+    - name: Deploy the transactional shell configuration
+      ansible.builtin.import_tasks: tasks/shell.yml
+      tags: [shell]
+
+    - name: Deploy privileged system configuration
+      ansible.builtin.import_tasks: tasks/system.yml
+      tags: [system]
+
+    - name: Apply and verify pending desktop handlers
+      ansible.builtin.meta: flush_handlers
+      tags: [always]
+
+    - name: Record a successful complete desktop deployment
+      ansible.builtin.import_tasks: tasks/desktop-receipt.yml
+      when: "'all' in ansible_run_tags"
+      tags: [always]
+
+- name: Deploy the Grace agent terminal integration
+  hosts: grace_agent_accounts
+  gather_facts: true
+  become: false
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Deploy the remote terminal integration
+      ansible.builtin.import_tasks: tasks/remote-terminal.yml
+      tags: [remote-terminal]

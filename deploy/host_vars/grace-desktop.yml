@@ -1,0 +1,69 @@
+---
+expected_hostname: grace
+expected_user: andre
+expected_uid: 1000
+expected_home: /home/andre
+expected_architecture: x86_64
+
+desktop_host_trees:
+  - id: plugin-andre-lock
+    dest: .config/omarchy/plugins/andre.lock
+    state: absent
+    restart_shell: true
+  - id: plugin-andre-power
+    dest: .config/omarchy/plugins/andre.power
+    state: absent
+    restart_shell: true
+
+desktop_host_files: []
+desktop_absent_files:
+  - { dest: .config/systemd/user/voxtype-deepgram.service, reload: voxtype }
+  - { dest: .config/systemd/user/voxtype-deepgram.service.d/shortcuts.conf, reload: voxtype }
+  - { dest: .config/voxtype-deepgram/config.toml, reload: none }
+  - { dest: .local/libexec/voxtype-deepgram-daemon, reload: voxtype }
+desktop_host_system_files: []
+desktop_absent_system_files:
+  - /etc/pam.d/omarchy-face-observe
+desktop_enable_voxtype: false
+
+shell_managed_config:
+  version: 1
+  idle:
+    screensaver: 150
+    lock: 3300
+  bar:
+    id: andre.bar
+    position: top
+    transparent: true
+    centerAnchor: omarchy.clock
+    layout:
+      left:
+        - { id: omarchy.menu }
+        - { id: omarchy.workspaces }
+      center:
+        - { id: omarchy.indicators }
+        - { id: andre.clock, format: "h:mm:ss AP", formatAlt: "d MMMM 'W'ww yyyy", verticalFormat: "HH\n—\nmm" }
+        - { id: omarchy.keyboard-layout }
+        - { id: omarchy.weather }
+        - { id: omarchy.system-update }
+      right:
+        - { id: omarchy.tray }
+        - { id: andre.system-pulse }
+        - { id: andre.backups }
+        - { id: andre.credits }
+        - { id: omarchy.tailscale }
+        - { id: andre.agents }
+        - { id: omarchy.bluetooth }
+        - { id: omarchy.network }
+        - { id: omarchy.audio }
+        - { id: omarchy.monitor }
+        - { id: omarchy.power, showPercentage: false }
+  plugins:
+    - { id: andre.idle }
+    - { id: andre.background }
+  disabledPlugins:
+    - omarchy.idle
+    - omarchy.background
+  cloneSourceRestores:
+    - andre.idle
+    - andre.background

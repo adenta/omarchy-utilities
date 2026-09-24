@@ -13,17 +13,17 @@ clipboard. The wheel scrolls retained output. Drag selection stays highlighted
 until copied or cancelled; Shift+drag retains the terminal's native selection.
 Scrolling moves by text rows, as in the existing Love setup.
 
-## Files and installation
+## Files and deployment
 
 Dependencies: Bash, tmux 3.7 with `get-clipboard request`, Perl and its core
 modules, and Codex terminal OSC 52 clipboard support. No new service or package
 is required on Grace.
 
-- Copy `codex.conf`, `codex-paste.pl`, and `codex-startup.bash` into the
-  agent account's `~/.config/tmux/`, after inspecting local differences and
-  saving private rollback copies. Keep the existing stock `tmux.conf`.
-- Merge the following into the account's active Bash login file. Grace uses
-  `~/.bash_profile`; a `~/.profile` hook would be ignored there.
+- The repository playbook copies `codex.conf`, `codex-paste.pl`, and
+  `codex-startup.bash` into the agent account's `~/.config/tmux/`, preserving
+  the existing stock `tmux.conf`.
+- It manages the following line in the account's active Bash login file. Grace
+  uses `~/.bash_profile`; a `~/.profile` hook would be ignored there.
 
   `[[ -r "$HOME/.config/tmux/codex-startup.bash" ]] && source "$HOME/.config/tmux/codex-startup.bash"`
 

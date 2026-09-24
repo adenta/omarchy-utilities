@@ -7,7 +7,17 @@ const {spawnSync,execFileSync} = require('node:child_process');
 const plugin = path.resolve(__dirname,'..');
 const ctx = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(plugin,'Pace.js'),'utf8'),ctx);
+vm.runInContext(fs.readFileSync(path.join(plugin,'SessionStart.js'),'utf8'),ctx);
 vm.runInContext(fs.readFileSync(path.join(plugin,'Upstream.js'),'utf8'),ctx);
+const panelSource=fs.readFileSync(path.join(plugin,'Panel.qml'),'utf8');
+assert.ok(panelSource.includes('readonly property color barPaceGreen: lightBar ? "#7dea68" : "#004d2c"'));
+assert.ok(panelSource.includes('startingValue: limitRow.window ? limitRow.window.startingPercent : -1'));
+assert.ok(panelSource.includes('Started today at '));
+assert.ok(panelSource.includes('Component.onCompleted: Qt.callLater(refreshStartingDay)'));
+assert.ok(panelSource.includes('property string startingUsageDay: ""'));
+assert.ok(panelSource.includes('nowMs = Date.now()\n    refreshStartingDay()'));
+assert.ok(panelSource.includes('onTriggered: root.nowMs = Date.now()'));
+assert.ok(panelSource.includes('barPaceLevel === -1\n    ? root.barPaceGreen'));
 assert.equal(ctx.classify(0,true,'current\n'),'current');
 assert.equal(ctx.classify(0,true,'changed'),'changed');
 for (const output of ['current','changed','','unexpected']) {
@@ -16,18 +26,50 @@ for (const output of ['current','changed','','unexpected']) {
 }
 for (const output of ['', 'unexpected', 'current\nchanged']) assert.equal(ctx.classify(0,true,output),'unknown');
 assert.equal(ctx.classify(0,true,'current'),'current');
+const initialProviders = [
+ {providerId:'claude',limits:[{label:'Session (5-hour)',title:'Session',percent:.4,resetsAt:'first'}]},
+ {providerId:'codex',limits:[
+  {label:'5h window',title:'Session',percent:.23,resetsAt:'first'},
+  {label:'Weekly',title:'Weekly',percent:.8,resetsAt:'first'}
+ ]}
+];
+const startingUsage = ctx.capture({},initialProviders);
+assert.equal(ctx.value(startingUsage,'codex',initialProviders[1].limits[0],0),.23);
+assert.equal(ctx.value(startingUsage,'codex',initialProviders[1].limits[1],1),.8);
+assert.equal(ctx.value(startingUsage,'claude',initialProviders[0].limits[0],0),-1);
+const resetProviders = [{providerId:'codex',limits:[
+ {label:'5h window',title:'Session',percent:0,resetsAt:'second'},
+ {label:'Weekly',title:'Weekly',percent:.81,resetsAt:'first'},
+ {label:'Model window',title:'GPT-6',percent:.11,resetsAt:'first'}
+]}];
+const afterReset = ctx.capture(startingUsage,resetProviders);
+assert.equal(ctx.value(afterReset,'codex',resetProviders[0].limits[0],0),.23);
+assert.equal(ctx.value(afterReset,'codex',resetProviders[0].limits[1],1),.8);
+assert.equal(ctx.value(afterReset,'codex',resetProviders[0].limits[2],2),.11);
+const beforeMidnight = new Date(2026,8,24,23,59,59).getTime();
+const afterMidnight = new Date(2026,8,25,0,0,1).getTime();
+assert.equal(ctx.dayKey(beforeMidnight),'2026-09-24');
+assert.equal(ctx.dayKey(afterMidnight),'2026-09-25');
 const now = Date.parse('2026-09-17T12:00:00Z');
 const day = 86400000;
 const reset = new Date(now+5.125*day).toISOString();
 const pace = ctx.weekly(.18,reset,now);
 assert.ok(Math.abs(pace.target-1.875/7)<1e-10);
-assert.equal(pace.label,'On track');
+assert.equal(pace.label,'Below pace');
 assert.equal(ctx.weekly(pace.target,reset,now).level,0);
-assert.equal(ctx.weekly(pace.target+.025,reset,now).level,1);
-assert.equal(ctx.weekly(pace.target+.05,reset,now).level,1);
-assert.equal(ctx.weekly(pace.target+.051,reset,now).level,2);
+assert.equal(ctx.weekly(pace.target-.01,reset,now).level,-1);
+assert.equal(ctx.weekly(pace.target-.01,reset,now).label,'Below pace');
+assert.equal(ctx.weekly(pace.target+.025,reset,now).level,0);
+assert.equal(ctx.weekly(pace.target+.05,reset,now).level,0);
+assert.equal(ctx.weekly(pace.target+.05,reset,now).label,'On track');
+assert.equal(ctx.weekly(pace.target+.051,reset,now).level,1);
+assert.equal(ctx.weekly(pace.target+.051,reset,now).label,'Above pace');
+assert.equal(ctx.weekly(pace.target+.10,reset,now).level,1);
+assert.equal(ctx.weekly(pace.target+.101,reset,now).level,2);
+assert.equal(ctx.weekly(pace.target+.101,reset,now).label,'Well above pace');
 assert.equal(ctx.weekly(1,reset,now).label,'Limit reached');
-assert.equal(ctx.weekly(0,reset,now).level,0);
+assert.equal(ctx.weekly(0,reset,now).level,-1);
+assert.equal(ctx.weekly(0,reset,now).label,'Below pace');
 assert.ok(ctx.weekly(.18,reset,now+3600000).target>pace.target);
 assert.equal(ctx.weekly(0,new Date(now+7*day).toISOString(),now).target,0);
 for(const date of ['', 'bad',new Date(now).toISOString(),new Date(now-1).toISOString(),new Date(now+8*day).toISOString()]) assert.equal(ctx.weekly(.18,date,now),null);
@@ -35,9 +77,13 @@ for(const usage of [NaN,-1,undefined]) assert.equal(ctx.weekly(usage,reset,now),
 const weeklyWindow = percent => ({weekly:true,percent,resetAt:reset});
 assert.equal(ctx.highestLevel([],now),0);
 assert.equal(ctx.highestLevel([{weekly:false,percent:1,resetAt:reset}],now),0);
-assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025)],now),1);
-assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025),weeklyWindow(pace.target+.06)],now),2);
-assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025)],now+day),0);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target-.01)],now),-1);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025)],now),0);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.051)],now),1);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.101)],now),2);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target-.01),weeklyWindow(pace.target+.06)],now),1);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target-.01),weeklyWindow(pace.target+.11)],now),2);
+assert.equal(ctx.highestLevel([weeklyWindow(pace.target+.025),weeklyWindow(pace.target+.10)],now),1);
 assert.equal(ctx.highestLevel([weeklyWindow(.8)],Date.parse(reset)),0);
 assert.equal(ctx.highestLevel([{weekly:true,percent:.8,resetAt:'bad'}],now),0);
 const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'agents-upstream-test-'));
@@ -45,9 +91,11 @@ try {
  const stock=path.join(fixture,'stock');fs.mkdirSync(stock);
  fs.writeFileSync(path.join(stock,'Panel.qml'),'original');
  const baseline=path.join(fixture,'baseline');
- const hash=execFileSync('bash',['-c',"find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d ' ' -f 1"],{cwd:stock,encoding:'utf8'});
+ const hashResult=spawnSync('bash',['-c',"find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d ' ' -f 1"],{cwd:stock,encoding:'utf8'});
+ assert.equal(hashResult.status,0);
+ const hash=hashResult.stdout;
  fs.writeFileSync(baseline,hash);
- const check=()=>execFileSync('bash',[path.join(plugin,'check-upstream'),stock,baseline],{encoding:'utf8'}).trim();
+ const check=()=>{ const result=spawnSync('bash',[path.join(plugin,'check-upstream'),stock,baseline],{encoding:'utf8'}); assert.equal(result.status,0); return result.stdout.trim(); };
  assert.equal(check(),'current');
  fs.writeFileSync(path.join(stock,'Panel.qml'),'modified');assert.equal(check(),'changed');
  fs.writeFileSync(path.join(stock,'Panel.qml'),'original');assert.equal(check(),'current');
@@ -57,4 +105,4 @@ try {
  assert.notEqual(spawnSync('bash',[path.join(plugin,'check-upstream'),path.join(fixture,'missing'),baseline]).status,0);
  fs.writeFileSync(baseline,'invalid');assert.notEqual(spawnSync('bash',[path.join(plugin,'check-upstream'),stock,baseline]).status,0);
 } finally {fs.rmSync(fixture,{recursive:true,force:true});}
-console.log('PASS: weekly pace, color boundaries, continuous time, invalid data, and upstream change detection');
+console.log('PASS: session-start markers, weekly pace, color boundaries, continuous time, invalid data, and upstream change detection');

@@ -1,0 +1,74 @@
+---
+expected_hostname: xps13-2026
+expected_user: andre
+expected_uid: 1000
+expected_home: /home/andre
+expected_architecture: x86_64
+
+desktop_host_trees:
+  - id: plugin-andre-lock
+    source: files/.config/omarchy/plugins/andre.lock
+    dest: .config/omarchy/plugins/andre.lock
+    plugin: true
+    restart_shell: true
+  - id: plugin-andre-power
+    source: files/.config/omarchy/plugins/andre.power
+    dest: .config/omarchy/plugins/andre.power
+    plugin: true
+    restart_shell: true
+
+desktop_host_files:
+  - { source: files/.config/systemd/user/voxtype-deepgram.service, dest: .config/systemd/user/voxtype-deepgram.service, reload: voxtype }
+  - { source: files/.config/voxtype-deepgram/config.toml, dest: .config/voxtype-deepgram/config.toml, reload: none }
+  - { source: files/.local/libexec/voxtype-deepgram-daemon, dest: .local/libexec/voxtype-deepgram-daemon, reload: voxtype }
+
+desktop_absent_files: []
+desktop_host_system_files:
+  - { source: system/etc/pam.d/omarchy-face-observe, dest: /etc/pam.d/omarchy-face-observe, reload: none }
+desktop_absent_system_files: []
+desktop_enable_voxtype: true
+
+shell_managed_config:
+  version: 1
+  idle:
+    screensaver: 150
+    lock: 900
+  bar:
+    id: andre.bar
+    position: top
+    transparent: true
+    centerAnchor: omarchy.clock
+    layout:
+      left:
+        - { id: omarchy.menu }
+        - { id: omarchy.workspaces }
+      center:
+        - { id: omarchy.indicators }
+        - { id: omarchy.keyboard-layout }
+        - { id: andre.clock, format: "h:mm:ss AP", formatAlt: "d MMMM 'W'ww yyyy", verticalFormat: "HH\n—\nmm" }
+        - { id: omarchy.weather }
+        - { id: omarchy.system-update }
+      right:
+        - { id: omarchy.tray }
+        - { id: andre.system-pulse }
+        - { id: andre.backups }
+        - { id: andre.credits }
+        - { id: omarchy.tailscale }
+        - { id: andre.agents }
+        - { id: omarchy.bluetooth }
+        - { id: omarchy.network }
+        - { id: omarchy.audio }
+        - { id: omarchy.monitor }
+        - { id: andre.power, showPercentage: false }
+  plugins:
+    - { id: andre.idle }
+    - { id: andre.background }
+    - { id: andre.lock }
+  disabledPlugins:
+    - omarchy.idle
+    - omarchy.background
+    - omarchy.lock
+  cloneSourceRestores:
+    - andre.idle
+    - andre.background
+    - andre.lock

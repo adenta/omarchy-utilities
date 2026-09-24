@@ -14,7 +14,9 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 - **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
   It appears only when more than one agent is enabled.
 - **Limits** — the percentage of each allowance used, a matching meter, and
-  the time until the session or weekly window resets.
+  the time until the session or weekly window resets. Codex meters retain a
+  dot at the percentage where the current shell session began; the dot stays
+  put across allowance resets and clears when the shell restarts.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.

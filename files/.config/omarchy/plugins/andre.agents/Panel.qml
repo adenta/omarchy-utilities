@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Pace.js" as Pace
+import "SessionStart.js" as SessionStart
 import "Upstream.js" as Upstream
 
 Panel {
@@ -32,6 +33,12 @@ Panel {
   }
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
+  // One in-memory snapshot per Codex limit and local calendar day. Reset
+  // timestamps are intentionally absent from the key: an allowance rollover
+  // does not move the dot, but local midnight starts a fresh daily snapshot.
+  property var startingUsage: ({})
+  property string startingUsageDay: ""
+
   property bool cursorActive: false
   property string upstreamStatus: "unknown"
   readonly property bool upstreamChanged: upstreamStatus === "changed"
@@ -39,6 +46,7 @@ Panel {
   property bool showUpstreamDetails: false
   readonly property color paceOrange: colorLuminance(surface) > 0.5 ? "#a84b00" : "#ffb454"
   readonly property color paceRed: colorLuminance(surface) > 0.5 ? "#bd2028" : "#ff737b"
+  readonly property color paceGreen: colorLuminance(surface) > 0.5 ? "#2e7d32" : "#7ee787"
 
   Process {
     id: upstreamCheck
@@ -75,9 +83,17 @@ Panel {
     return 0
   }
   readonly property bool lightBar: colorLuminance(bar ? bar.background : Color.bar.background) > 0.5
-  readonly property color barPaceColor: barPaceLevel === 2
+  // The transparent bar sits on orb-day-blue in the light theme and on the
+  // pale top strip of orb-night-short-fade in the dark theme. These colors
+  // are deliberately opposite in luminance so the robot clears both images.
+  readonly property color barPaceGreen: lightBar ? "#7dea68" : "#004d2c"
+  readonly property color barPaceColor: barPaceLevel === -1
+    ? root.barPaceGreen
+    : barPaceLevel === 1
+    ? (lightBar ? "#a84b00" : "#ffb454")
+    : barPaceLevel === 2
     ? (lightBar ? "#bd2028" : "#ff737b")
-    : (lightBar ? "#a84b00" : "#ffb454")
+    : root.urgent
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -90,6 +106,20 @@ Panel {
 
   function refreshNow() {
     usage.refreshAll(true)
+  }
+
+  function captureStartingUsage() {
+    var captured = SessionStart.capture(startingUsage, providers)
+    if (captured !== startingUsage) startingUsage = captured
+  }
+
+  function refreshStartingDay() {
+    var day = SessionStart.dayKey(nowMs)
+    if (startingUsageDay !== day) {
+      startingUsage = ({})
+      startingUsageDay = day
+    }
+    captureStartingUsage()
   }
 
   function launchAgent() {
@@ -134,10 +164,11 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  function limitWindow(label, percent, resetAt, title, startingPercent) {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
+      startingPercent: Number(startingPercent),
       weekly: windowSpanMs(label) === 7 * 24 * 3600 * 1000,
       resetAt: String(resetAt || "")
     }
@@ -150,7 +181,11 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      var startingPercent = p.providerId === "codex"
+        ? SessionStart.value(startingUsage, p.providerId, entry, i)
+        : -1
+      if (percent >= 0)
+        out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, startingPercent))
     }
     return out
   }
@@ -335,10 +370,13 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  Component.onCompleted: Qt.callLater(refreshStartingDay)
+  onProvidersChanged: captureStartingUsage()
   onProviderIndexChanged: if (panelFlick) panelFlick.contentY = 0
   onOpenedChanged: if (opened) {
     cursorActive = false
     nowMs = Date.now()
+    refreshStartingDay()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
     if (!upstreamCheck.running) {
@@ -378,8 +416,8 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.barPaceLevel > 0 ? "󱚝" : "󱚣"
-    active: root.barPaceLevel > 0 || root.alarming
-    activeColor: root.barPaceLevel > 0 ? root.barPaceColor : root.urgent
+    active: root.barPaceLevel !== 0 || root.alarming
+    activeColor: root.alarming ? root.urgent : root.barPaceColor
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
       else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)
@@ -772,7 +810,12 @@ Panel {
     readonly property bool paceEnabled: !!root.provider && root.provider.providerId === "codex" && window && window.weekly
     readonly property var pace: paceEnabled ? Pace.weekly(window.percent, window.resetAt, root.nowMs) : null
     readonly property bool alarming: window && window.percent >= 0.9
-    readonly property color meterColor: pace ? (pace.level === 2 ? root.paceRed : pace.level === 1 ? root.paceOrange : root.foreground) : alarming ? root.urgent : root.foreground
+    readonly property color meterColor: pace
+      ? (pace.level === 2 ? root.paceRed
+        : pace.level === 1 ? root.paceOrange
+        : pace.level === -1 ? root.paceGreen
+        : root.foreground)
+      : alarming ? root.urgent : root.foreground
 
     spacing: Style.space(6)
 
@@ -813,6 +856,7 @@ Panel {
     Meter {
       width: parent.width
       value: limitRow.window ? limitRow.window.percent : -1
+      startingValue: limitRow.window ? limitRow.window.startingPercent : -1
       alarming: limitRow.alarming
       fillColor: limitRow.meterColor
       paceTarget: limitRow.pace ? limitRow.pace.target : -1
@@ -839,6 +883,7 @@ Panel {
     property bool alarming: false
     property color fillColor: alarming ? root.urgent : root.foreground
     property real paceTarget: -1
+    property real startingValue: -1
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
     implicitHeight: thickness
@@ -879,6 +924,31 @@ Panel {
       HoverHandler { id: markerHover }
       ToolTip.visible: markerHover.hovered
       ToolTip.text: "Even weekly pace: " + (meter.paceTarget * 100).toFixed(1) + "%"
+    }
+
+    Rectangle {
+      visible: meter.startingValue >= 0
+      width: Math.max(Style.space(7), meter.thickness + Style.space(3))
+      height: width
+      radius: width / 2
+      x: root.clamp(meter.width * meter.startingValue - width / 2, 0, Math.max(0, meter.width - width))
+      anchors.verticalCenter: parent.verticalCenter
+      color: root.surface
+      border.width: Style.space(1)
+      border.color: root.foreground
+      z: 2
+
+      Rectangle {
+        anchors.centerIn: parent
+        width: Style.space(3)
+        height: width
+        radius: width / 2
+        color: root.foreground
+      }
+
+      HoverHandler { id: startingMarkerHover }
+      ToolTip.visible: startingMarkerHover.hovered
+      ToolTip.text: "Started today at " + Math.round(meter.startingValue * 100) + "%"
     }
 
   }

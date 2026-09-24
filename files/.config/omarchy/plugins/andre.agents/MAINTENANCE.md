@@ -3,16 +3,23 @@
 Cloned from `omarchy.agents` on 2026-09-17. Packaged source:
 `/usr/share/omarchy/shell/plugins/agents`.
 
-Changes: exact-time weekly Codex pace marker and status, orange when up to five
-percentage points above pace and red beyond that, plus a header indicator when
-the installed stock widget differs from the reviewed baseline.
+Changes: exact-time weekly Codex pace marker and status, green below pace, orange
+from five to ten percentage points above pace, red beyond that, plus a header
+indicator when the installed stock widget differs from the reviewed baseline,
+and an in-memory dot showing where each Codex limit stood when the shell session
+began. The dot deliberately survives allowance resets and clears on shell restart.
 
 `Pace.js` owns the arithmetic; `Panel.qml` renders it. The bar uses the font's
-angry robot when Codex is above weekly pace: orange up to five percentage points
-above target, red beyond that or at the limit. Bar colors adapt to the bar's
-background; panel colors adapt to the popup. The warning remains visible when
-another provider is selected. On-track or unavailable pace uses the original
-excited robot, retaining existing low-balance and near-limit color alarms.
+angry robot when Codex is above weekly pace: orange from five to ten percentage
+points above target, red beyond that or at the limit. Bar colors adapt to the
+bar's background; panel colors adapt to the popup. The warning remains visible
+when another provider is selected. Below pace is green, through five percentage
+points above target is normal, and unavailable pace uses the original excited
+robot, retaining existing low-balance and near-limit color alarms.
+Because the bar is transparent over the paired Darkman wallpapers, its below-
+pace green is `#7dea68` for Catppuccin Latte / `orb-day-blue` and `#004d2c`
+for Tokyo Night / `orb-night-short-fade`. The popup meter keeps its independent
+surface-aware green pair.
 The 30-second clock runs while the widget is visible, including with the panel
 closed, so the expression can recover as time passes. Usage refresh on opening
 is retained.

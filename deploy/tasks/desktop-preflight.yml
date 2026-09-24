@@ -1,0 +1,73 @@
+---
+- name: Confirm the intended desktop machine and account
+  ansible.builtin.assert:
+    that:
+      - ansible_hostname == expected_hostname
+      - ansible_user_id == expected_user
+      - ansible_user_uid | int == expected_uid
+      - ansible_env.HOME == expected_home
+      - ansible_architecture == expected_architecture
+    fail_msg: >-
+      Refusing to deploy to {{ ansible_user_id }}@{{ ansible_hostname }}
+      ({{ ansible_env.HOME }}, {{ ansible_architecture }}); expected
+      {{ expected_user }}@{{ expected_hostname }} ({{ expected_home }},
+      {{ expected_architecture }}).
+
+- name: Check required desktop commands
+  ansible.builtin.command:
+    argv: [bash, -c, "command -v -- {{ item }}"]
+  loop: "{{ desktop_required_commands }}"
+  register: desktop_command_checks
+  changed_when: false
+  check_mode: false
+
+- name: Check the desktop user bus
+  ansible.builtin.stat:
+    path: "/run/user/{{ expected_uid }}/bus"
+  register: desktop_user_bus
+
+- name: Require a running desktop user manager
+  ansible.builtin.assert:
+    that:
+      - desktop_user_bus.stat.exists
+      - desktop_user_bus.stat.issock | default(false)
+    fail_msg: >-
+      The {{ expected_user }} desktop user bus is not available. Sign in to
+      the graphical session before deploying live Omarchy configuration.
+
+- name: Define this host's desired deployment
+  ansible.builtin.set_fact:
+    desktop_trees: "{{ desktop_shared_trees + desktop_host_trees }}"
+    desktop_content_trees: "{{ desktop_shared_content_trees }}"
+    desktop_files: "{{ desktop_shared_files + desktop_host_files }}"
+    desktop_system_files: "{{ desktop_common_system_files + desktop_host_system_files }}"
+    desktop_state_dir: "{{ expected_home }}/{{ deployment_state_rel }}"
+    changed_trees: []
+
+- name: Define this host's managed path receipt
+  ansible.builtin.set_fact:
+    desktop_managed_paths: >-
+      {{
+        ((desktop_trees | rejectattr('state', 'defined') | map(attribute='dest') | list)
+        + (desktop_content_trees | map(attribute='dest') | list)
+        + (desktop_files | map(attribute='dest') | list)) | unique | sort
+      }}
+
+- name: Inspect the previous deployment receipt
+  ansible.builtin.stat:
+    path: "{{ desktop_state_dir }}/receipt.json"
+  register: desktop_receipt_stat
+
+- name: Read the previous deployment receipt
+  ansible.builtin.slurp:
+    path: "{{ desktop_state_dir }}/receipt.json"
+  register: desktop_receipt_slurp
+  when: desktop_receipt_stat.stat.exists
+
+- name: Parse the previous deployment receipt
+  ansible.builtin.set_fact:
+    desktop_previous_receipt: >-
+      {{
+        (desktop_receipt_slurp.content | b64decode | from_json)
+        if desktop_receipt_stat.stat.exists else {}
+      }}

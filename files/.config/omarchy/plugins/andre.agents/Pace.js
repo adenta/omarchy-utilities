@@ -7,17 +7,25 @@ function weekly(used, resetAt, nowMs) {
     return null;
   var target = 1 - remaining / span;
   var over = used - target;
-  var level = used >= 1 ? 2 : over > 0.05 + 1e-9 ? 2 : over > 1e-9 ? 1 : 0;
+  var level = used >= 1 ? 2
+    : over > 0.10 + 1e-9 ? 2
+    : over > 0.05 + 1e-9 ? 1
+    : over < -1e-9 ? -1
+    : 0;
   return { target: target, level: level,
-    label: used >= 1 ? "Limit reached" : level === 2 ? "Well above pace" : level === 1 ? "Above pace" : "On track" };
+    label: used >= 1 ? "Limit reached"
+      : level === 2 ? "Well above pace"
+      : level === 1 ? "Above pace"
+      : level === -1 ? "Below pace"
+      : "On track" };
 }
 
 function highestLevel(windows, nowMs) {
-  var level = 0;
+  var level = null;
   for (var i = 0; i < windows.length; i++) {
     var window = windows[i];
     var pace = window.weekly ? weekly(window.percent, window.resetAt, nowMs) : null;
-    if (pace) level = Math.max(level, pace.level);
+    if (pace) level = level === null ? pace.level : Math.max(level, pace.level);
   }
-  return level;
+  return level === null ? 0 : level;
 }

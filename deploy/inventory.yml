@@ -1,0 +1,28 @@
+all:
+  children:
+    deployment_targets:
+      children:
+        omarchy_desktops:
+        grace_agent_accounts:
+    omarchy_desktops:
+      hosts:
+        xps-desktop:
+          ansible_connection: local
+        grace-desktop:
+          ansible_host: 100.77.68.71
+          ansible_user: andre
+          ansible_ssh_private_key_file: /home/andre/.ssh/grace_access_ed25519
+          ansible_ssh_common_args: >-
+            -F /dev/null -o IdentitiesOnly=yes -o HostKeyAlias=grace-openssh
+            -o UserKnownHostsFile=/home/andre/.ssh/known_hosts_work
+            -o StrictHostKeyChecking=yes -o ForwardAgent=no
+    grace_agent_accounts:
+      hosts:
+        grace-agent:
+          ansible_host: 100.77.68.71
+          ansible_user: agent
+          ansible_ssh_private_key_file: /home/andre/.ssh/grace_access_ed25519
+          ansible_ssh_common_args: >-
+            -F /dev/null -o IdentitiesOnly=yes -o HostKeyAlias=grace-openssh
+            -o UserKnownHostsFile=/home/andre/.ssh/known_hosts_work
+            -o StrictHostKeyChecking=yes -o ForwardAgent=no
