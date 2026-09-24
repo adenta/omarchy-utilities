@@ -160,8 +160,10 @@ plugin reports version 1.4.0. It never replaces the surrounding plugin,
 Hyprland, or systemd directories.
 
 If activation stops after moving the old tree, leave the evidence in
-`~/.local/state/omarchy-utilities/` until it is understood. To restore that
-tree from a TTY while the desktop is unlocked:
+`~/.local/state/omarchy-utilities/` until it is understood. Re-running the
+playbook resumes verification only when the active tree still matches the
+repository; otherwise it stops for review. To restore the previous tree from a
+TTY while the desktop is unlocked:
 
 ```sh
 mv ~/.config/omarchy/plugins/andre.lock ~/.local/state/omarchy-utilities/andre.lock.failed

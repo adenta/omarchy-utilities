@@ -70,16 +70,13 @@
         - "{{ lock_plugin_previous }}"
       register: lock_deploy_paths
 
-    - name: Preserve evidence from an interrupted deployment
+    - name: Preserve incomplete staging from an interrupted deployment
       ansible.builtin.assert:
         that:
-          - not item.stat.exists
+          - not lock_deploy_paths.results[0].stat.exists
         fail_msg: >-
-          {{ item.item }} already exists. Inspect it and complete recovery
-          before starting another deployment.
-      loop: "{{ lock_deploy_paths.results }}"
-      loop_control:
-        label: "{{ item.item }}"
+          {{ lock_plugin_stage }} already exists. Inspect it and complete
+          recovery before starting another deployment.
 
   tasks:
     - name: Inspect the installed lock plugin
@@ -105,6 +102,21 @@
         lock_plugin_changed: >-
           {{ (not installed_lock_plugin.stat.exists) or
              (lock_plugin_diff.rc | default(1) == 1) }}
+        lock_plugin_previous_exists: >-
+          {{ lock_deploy_paths.results[1].stat.exists }}
+
+    - name: Require review when a failed activation no longer matches source
+      ansible.builtin.assert:
+        that:
+          - not (lock_plugin_previous_exists and lock_plugin_changed)
+        fail_msg: >-
+          {{ lock_plugin_previous }} exists, but the active plugin differs
+          from this repository. Inspect both trees and recover deliberately.
+
+    - name: Decide whether deployment verification is pending
+      ansible.builtin.set_fact:
+        lock_plugin_verification_pending: >-
+          {{ lock_plugin_changed or lock_plugin_previous_exists }}
 
     - name: Create the private deployment state directory
       ansible.builtin.file:
@@ -254,9 +266,30 @@
           - shell
           - rescanPlugins
       changed_when: false
-      when: lock_plugin_changed and not ansible_check_mode
+      when: lock_plugin_verification_pending and not ansible_check_mode
 
-    - name: Read the running lock service status
+    - name: Read the lock service status after the rescan
+      ansible.builtin.command:
+        argv:
+          - /usr/share/omarchy/bin/omarchy-shell
+          - lock
+          - status
+      register: rescanned_lock_status
+      changed_when: false
+      when: lock_plugin_verification_pending and not ansible_check_mode
+
+    - name: Restart the unlocked shell when the service instance stayed cached
+      ansible.builtin.command:
+        argv:
+          - omarchy
+          - restart
+          - shell
+      when:
+        - lock_plugin_verification_pending
+        - not ansible_check_mode
+        - "'\"customizationVersion\":\"1.4.0\"' not in rescanned_lock_status.stdout"
+
+    - name: Wait for the running lock service release
       ansible.builtin.command:
         argv:
           - /usr/share/omarchy/bin/omarchy-shell
@@ -264,7 +297,13 @@
           - status
       register: running_lock_status
       changed_when: false
-      when: lock_plugin_changed and not ansible_check_mode
+      failed_when: false
+      retries: 10
+      delay: 1
+      until:
+        - running_lock_status.rc == 0
+        - "'\"customizationVersion\":\"1.4.0\"' in running_lock_status.stdout"
+      when: lock_plugin_verification_pending and not ansible_check_mode
 
     - name: Verify the running lock plugin version
       ansible.builtin.assert:
@@ -275,10 +314,10 @@
           The plugin tree was activated but the running shell did not report
           andre.lock 1.4.0. The previous tree remains at
           {{ lock_plugin_previous }} for recovery.
-      when: lock_plugin_changed and not ansible_check_mode
+      when: lock_plugin_verification_pending and not ansible_check_mode
 
     - name: Remove the temporary previous tree after successful verification
       ansible.builtin.file:
         path: "{{ lock_plugin_previous }}"
         state: absent
-      when: lock_plugin_changed and not ansible_check_mode
+      when: lock_plugin_verification_pending and not ansible_check_mode
