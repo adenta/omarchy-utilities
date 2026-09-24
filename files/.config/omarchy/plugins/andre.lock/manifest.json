@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "andre.lock",
   "name": "My Lock Screen",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "author": "Omarchy",
-  "description": "Stock password lock with observation-only face recognition and local upstream change tracking.",
+  "description": "Password lock with a 15-minute sleep unlock window and observation-only face recognition.",
   "omarchy": {
     "capabilities": [
       "authentication"

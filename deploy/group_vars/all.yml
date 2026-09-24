@@ -102,7 +102,7 @@ desktop_shared_files:
   - { source: files/.local/bin/omarchy-backup, dest: .local/bin/omarchy-backup, reload: none }
   - { source: files/.local/bin/omarchy-pokemon-screensaver, dest: .local/bin/omarchy-pokemon-screensaver, reload: none }
   - { source: files/.local/bin/omarchy-pokemon-select, dest: .local/bin/omarchy-pokemon-select, reload: none }
-  - { source: files/.local/libexec/codex-terminal-clipboard, dest: .local/libexec/codex-terminal-clipboard, reload: none }
+  - { source: files/.local/libexec/codex-terminal-clipboard, dest: .local/libexec/codex-terminal-clipboard, reload: none, mode: "0700" }
   - { source: files/.local/share/darkman/omarchy-nightlight, dest: .local/share/darkman/omarchy-nightlight, reload: none }
   - { source: files/.local/share/darkman/omarchy-theme, dest: .local/share/darkman/omarchy-theme, reload: none }
 

@@ -2,14 +2,14 @@
 - name: Confirm the intended desktop machine and account
   ansible.builtin.assert:
     that:
-      - ansible_hostname == expected_hostname
-      - ansible_user_id == expected_user
-      - ansible_user_uid | int == expected_uid
-      - ansible_env.HOME == expected_home
-      - ansible_architecture == expected_architecture
+      - ansible_facts['hostname'] == expected_hostname
+      - ansible_facts['user_id'] == expected_user
+      - ansible_facts['user_uid'] | int == expected_uid
+      - ansible_facts['env']['HOME'] == expected_home
+      - ansible_facts['architecture'] == expected_architecture
     fail_msg: >-
-      Refusing to deploy to {{ ansible_user_id }}@{{ ansible_hostname }}
-      ({{ ansible_env.HOME }}, {{ ansible_architecture }}); expected
+      Refusing to deploy to {{ ansible_facts['user_id'] }}@{{ ansible_facts['hostname'] }}
+      ({{ ansible_facts['env']['HOME'] }}, {{ ansible_facts['architecture'] }}); expected
       {{ expected_user }}@{{ expected_hostname }} ({{ expected_home }},
       {{ expected_architecture }}).
 

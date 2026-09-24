@@ -55,6 +55,14 @@
     - not ansible_check_mode
     - desktop_enable_voxtype
 
+- name: Restart sleep-lock service
+  ansible.builtin.systemd_service:
+    name: omarchy-sleep-lock.service
+    scope: user
+    daemon_reload: true
+    state: restarted
+  when: not ansible_check_mode
+
 - name: Restart Atop recording
   become: true
   block:

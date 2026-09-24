@@ -1,0 +1,7 @@
+#!/bin/bash
+# Only placed on PATH by sleep-dispatch, never in the general user PATH.
+# Keep all stock status checks and non-lock IPC unchanged.
+if [[ $# == 2 && $1 == lock && $2 == lock ]]; then
+  exec /usr/bin/omarchy-shell lock lockForSleep
+fi
+exec /usr/bin/omarchy-shell "$@"

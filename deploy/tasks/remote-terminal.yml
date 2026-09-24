@@ -2,14 +2,15 @@
 - name: Confirm the intended Grace agent account
   ansible.builtin.assert:
     that:
-      - ansible_hostname == expected_hostname
-      - ansible_user_id == expected_user
-      - ansible_user_uid | int == expected_uid
-      - ansible_env.HOME == expected_home
-      - ansible_architecture == expected_architecture
+      - ansible_facts['hostname'] == expected_hostname
+      - ansible_facts['user_id'] == expected_user
+      - ansible_facts['user_uid'] | int == expected_uid
+      - ansible_facts['env']['HOME'] == expected_home
+      - ansible_facts['architecture'] == expected_architecture
     fail_msg: >-
       Refusing to deploy remote terminal files to
-      {{ ansible_user_id }}@{{ ansible_hostname }} ({{ ansible_env.HOME }}).
+      {{ ansible_facts['user_id'] }}@{{ ansible_facts['hostname'] }}
+      ({{ ansible_facts['env']['HOME'] }}).
 
 - name: Check Grace agent terminal dependencies
   ansible.builtin.command:
@@ -61,8 +62,8 @@
             '.config/tmux/codex-startup.bash'
           ],
           'managedBlocks': ['.bash_profile:remote-codex-terminal']
-        } | to_nice_json(indent=2)
-      }}
+        } | to_nice_json(indent=2, ensure_ascii=false)
+      }}{{ '\n' }}
     dest: "{{ expected_home }}/{{ deployment_state_rel }}/receipt.json"
     mode: "0600"
   when: "'all' in ansible_run_tags"

@@ -44,7 +44,7 @@ only when its minimize-to-tray preference needs repair.
 | --- | --- | --- |
 | Bar and panels | `files/.config/omarchy/plugins/andre.{bar,clock,system-pulse,backups,credits,background,idle,agents}` | Omarchy shell/Quickshell; htop for System Pulse; open each panel and run its existing tests. |
 | Battery history panel (XPS only) | `files/.config/omarchy/plugins/andre.power` | UPower; preserve history/aggregation, run `node tests/history.test.cjs`, `node tests/aggregation.test.cjs`, and `node tests/run.cjs` inside the plugin. Grace keeps stock power. |
-| Lock-screen observation (XPS only) | `files/.config/omarchy/plugins/andre.lock` | Facelock via dedicated observation PAM; icons, local logs and upstream baseline checking. See [setup and boundaries](docs/face-observe.md). |
+| Lock screen (XPS only) | `files/.config/omarchy/plugins/andre.lock` | Facelock observation plus the user-approved two-Enter post-sleep unlock window. Ansible owns its lid binding and sleep-lock drop-in; anyone physically present during the configured 900-second window can unlock. See the plugin's `MAINTENANCE.md` and [observation boundaries](docs/face-observe.md). |
 | Shared window and keyboard behavior | `files/.config/hypr/omarchy-utilities.lua` | Load once at the end of personal `hyprland.lua`; reload and check config errors. |
 | Themes and night light | `files/.local/share/darkman/`, `files/.config/omarchy/hooks/`, the two orb wallpapers, and `hyprsunset.conf` | Darkman, Omarchy, Hyprsunset; check light/dark transitions and night-light temperature. Darkman's location stays local. |
 | Pokémon screensaver | `files/.local/bin/omarchy-pokemon-*`, `files/.local/share/omarchy-pokemon-screensaver/`, `files/.config/omarchy/screensaver/`, `andre.idle` | Omarchy renderer/ttfx and a supported terminal; verify launch, exit, and artwork cycling. Keep rotation state local. |
@@ -167,6 +167,8 @@ node files/.config/omarchy/plugins/andre.system-pulse/tests/run.js
 node files/.config/omarchy/plugins/andre.backups/tests/run.js
 node files/.config/omarchy/plugins/andre.credits/tests/run.js
 node files/.config/omarchy/plugins/andre.agents/tests/run.cjs
+node files/.config/omarchy/plugins/andre.lock/tests/run.cjs
+node files/.config/omarchy/plugins/andre.lock/tests/ui.cjs
 bash tests/backup-policy.sh
 bash tests/backup-size.sh
 node tests/pokemon-screensaver.js

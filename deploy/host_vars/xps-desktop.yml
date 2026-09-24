@@ -18,6 +18,7 @@ desktop_host_trees:
     restart_shell: true
 
 desktop_host_files:
+  - { source: files/.config/systemd/user/omarchy-sleep-lock.service.d/unlock-window.conf, dest: .config/systemd/user/omarchy-sleep-lock.service.d/unlock-window.conf, reload: sleep-lock }
   - { source: files/.config/systemd/user/voxtype-deepgram.service, dest: .config/systemd/user/voxtype-deepgram.service, reload: voxtype }
   - { source: files/.config/voxtype-deepgram/config.toml, dest: .config/voxtype-deepgram/config.toml, reload: none }
   - { source: files/.local/libexec/voxtype-deepgram-daemon, dest: .local/libexec/voxtype-deepgram-daemon, reload: voxtype }
@@ -27,6 +28,7 @@ desktop_host_system_files:
   - { source: system/etc/pam.d/omarchy-face-observe, dest: /etc/pam.d/omarchy-face-observe, reload: none }
 desktop_absent_system_files: []
 desktop_enable_voxtype: true
+desktop_enable_sleep_unlock_window: true
 
 shell_managed_config:
   version: 1

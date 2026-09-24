@@ -37,7 +37,7 @@
   block:
     - name: Write host-specific shell configuration
       ansible.builtin.copy:
-        content: "{{ shell_config_desired | to_nice_json(indent=2) }}\n"
+        content: "{{ shell_config_desired | to_nice_json(indent=2, ensure_ascii=false) }}\n"
         dest: "{{ expected_home }}/.config/omarchy/shell.json"
         mode: "0644"
       register: shell_config_copy

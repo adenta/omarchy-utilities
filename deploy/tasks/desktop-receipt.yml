@@ -30,7 +30,7 @@
           'revision': deployment_revision,
           'profile': inventory_hostname,
           'managedPaths': desktop_managed_paths
-        } | to_nice_json(indent=2)
-      }}
+        } | to_nice_json(indent=2, ensure_ascii=false)
+      }}{{ '\n' }}
     dest: "{{ desktop_state_dir }}/receipt.json"
     mode: "0600"

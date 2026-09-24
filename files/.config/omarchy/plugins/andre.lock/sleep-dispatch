@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+plugin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+export PATH="$plugin_dir/sleep-ipc:$PATH"
+case ${1:-} in
+  lid) exec "${OMARCHY_PATH:-/usr/share/omarchy}/bin/omarchy-system-lid-close" ;;
+  monitor) exec "${OMARCHY_PATH:-/usr/share/omarchy}/bin/omarchy-system-sleep-monitor" ;;
+  *) echo 'Usage: sleep-dispatch lid|monitor' >&2; exit 2 ;;
+esac

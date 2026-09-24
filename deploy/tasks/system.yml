@@ -31,10 +31,8 @@
   ansible.builtin.debug:
     msg: Atop configuration changed
   changed_when: >-
-    {{
-      (desktop_system_copies.results
-       | selectattr('changed')
-       | selectattr('item.reload', 'equalto', 'atop')
-       | list | length) > 0
-    }}
+    (desktop_system_copies.results
+     | selectattr('changed')
+     | selectattr('item.reload', 'equalto', 'atop')
+     | list | length) > 0
   notify: Restart Atop recording
