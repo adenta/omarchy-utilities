@@ -1,0 +1,284 @@
+---
+- name: Deploy the XPS lock screen
+  hosts: xps_lockscreen
+  gather_facts: true
+  become: false
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    lock_plugin_source: "{{ playbook_dir }}/../files/.config/omarchy/plugins/andre.lock"
+    lock_plugin_dest: "{{ desktop_home }}/.config/omarchy/plugins/andre.lock"
+    lock_deploy_state: "{{ desktop_home }}/.local/state/omarchy-utilities"
+    lock_plugin_stage: "{{ lock_deploy_state }}/andre.lock.next"
+    lock_plugin_previous: "{{ lock_deploy_state }}/andre.lock.previous"
+    sleep_lock_dropin_dir: "{{ desktop_home }}/.config/systemd/user/omarchy-sleep-lock.service.d"
+    hypr_bindings: "{{ desktop_home }}/.config/hypr/bindings.lua"
+
+  pre_tasks:
+    - name: Confirm the intended machine and account
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['hostname'] == expected_hostname
+          - ansible_facts['user_id'] == desktop_user
+          - ansible_facts['env']['HOME'] == desktop_home
+        fail_msg: >-
+          Refusing to deploy: expected {{ desktop_user }} on
+          {{ expected_hostname }}, got {{ ansible_facts['user_id'] }} on
+          {{ ansible_facts['hostname'] }} with home
+          {{ ansible_facts['env']['HOME'] }}.
+
+    - name: Check required lock screen paths
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ lock_plugin_source }}/manifest.json"
+        - "{{ hypr_bindings }}"
+        - /etc/pam.d/omarchy-lock-password
+      register: lock_required_paths
+
+    - name: Require the repository, Hyprland bindings, and password PAM service
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "Required lock screen path is missing: {{ item.item }}"
+      loop: "{{ lock_required_paths.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Confirm the desktop is unlocked
+      ansible.builtin.command:
+        argv:
+          - /usr/share/omarchy/bin/omarchy-shell
+          - lock
+          - isLocked
+      register: lock_state
+      changed_when: false
+      check_mode: false
+
+    - name: Refuse to replace a live locked service
+      ansible.builtin.assert:
+        that:
+          - lock_state.stdout | trim == 'false'
+        fail_msg: "Unlock the desktop before deploying andre.lock."
+
+    - name: Inspect deployment staging paths
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ lock_plugin_stage }}"
+        - "{{ lock_plugin_previous }}"
+      register: lock_deploy_paths
+
+    - name: Preserve evidence from an interrupted deployment
+      ansible.builtin.assert:
+        that:
+          - not item.stat.exists
+        fail_msg: >-
+          {{ item.item }} already exists. Inspect it and complete recovery
+          before starting another deployment.
+      loop: "{{ lock_deploy_paths.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+  tasks:
+    - name: Inspect the installed lock plugin
+      ansible.builtin.stat:
+        path: "{{ lock_plugin_dest }}"
+      register: installed_lock_plugin
+
+    - name: Compare repository and installed lock plugin
+      ansible.builtin.command:
+        argv:
+          - diff
+          - -qr
+          - "{{ lock_plugin_source }}"
+          - "{{ lock_plugin_dest }}"
+      register: lock_plugin_diff
+      changed_when: lock_plugin_diff.rc == 1
+      failed_when: lock_plugin_diff.rc not in [0, 1]
+      check_mode: false
+      when: installed_lock_plugin.stat.exists
+
+    - name: Decide whether the plugin needs activation
+      ansible.builtin.set_fact:
+        lock_plugin_changed: >-
+          {{ (not installed_lock_plugin.stat.exists) or
+             (lock_plugin_diff.rc | default(1) == 1) }}
+
+    - name: Create the private deployment state directory
+      ansible.builtin.file:
+        path: "{{ lock_deploy_state }}"
+        state: directory
+        owner: "{{ desktop_user }}"
+        group: "{{ desktop_user }}"
+        mode: "0700"
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Create the complete staged plugin directory
+      ansible.builtin.file:
+        path: "{{ lock_plugin_stage }}"
+        state: directory
+        owner: "{{ desktop_user }}"
+        group: "{{ desktop_user }}"
+        mode: "0755"
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Stage the complete lock plugin
+      ansible.builtin.copy:
+        src: "{{ lock_plugin_source }}/"
+        dest: "{{ lock_plugin_stage }}/"
+        owner: "{{ desktop_user }}"
+        group: "{{ desktop_user }}"
+        mode: preserve
+        directory_mode: "0755"
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Run lock service tests against the staged release
+      ansible.builtin.command:
+        argv:
+          - node
+          - "{{ lock_plugin_stage }}/tests/run.cjs"
+      changed_when: false
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Run sleep routing tests against the staged release
+      ansible.builtin.command:
+        argv:
+          - bash
+          - "{{ lock_plugin_stage }}/tests/sleep-routing.sh"
+      changed_when: false
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Activate the complete plugin tree with same-filesystem renames
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          destination={{ lock_plugin_dest | quote }}
+          staged={{ lock_plugin_stage | quote }}
+          previous={{ lock_plugin_previous | quote }}
+
+          if [[ -e "$destination" ]]; then
+            mv -- "$destination" "$previous"
+          fi
+          if ! mv -- "$staged" "$destination"; then
+            if [[ -e "$previous" && ! -e "$destination" ]]; then
+              mv -- "$previous" "$destination"
+            fi
+            exit 1
+          fi
+      args:
+        executable: /bin/bash
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Create the sleep monitor override directory
+      ansible.builtin.file:
+        path: "{{ sleep_lock_dropin_dir }}"
+        state: directory
+        owner: "{{ desktop_user }}"
+        group: "{{ desktop_user }}"
+        mode: "0755"
+
+    - name: Install the sleep monitor override
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../files/.config/systemd/user/omarchy-sleep-lock.service.d/unlock-window.conf"
+        dest: "{{ sleep_lock_dropin_dir }}/unlock-window.conf"
+        owner: "{{ desktop_user }}"
+        group: "{{ desktop_user }}"
+        mode: "0644"
+      register: sleep_lock_dropin
+
+    - name: Read the existing Hyprland bindings
+      ansible.builtin.slurp:
+        path: "{{ hypr_bindings }}"
+      register: existing_hypr_bindings
+
+    - name: Remove the pre-Ansible lid-close block during migration
+      ansible.builtin.replace:
+        path: "{{ hypr_bindings }}"
+        regexp: '(?ms)^-- Sleep unlock window: replace the stock lid-close action, keeping its display handling\.\nhl\.unbind\("switch:on:Lid Switch"\)\no\.bind\("switch:on:Lid Switch", nil,\n  os\.getenv\("HOME"\) \.\. "/\.config/omarchy/plugins/andre\.lock/sleep-dispatch lid",\n  \{ locked = true \}\)\n?'
+        replace: ''
+      when: >-
+        '-- BEGIN ANSIBLE MANAGED: andre.lock sleep unlock window' not in
+        (existing_hypr_bindings.content | b64decode)
+
+    - name: Install the lid-close routing block
+      ansible.builtin.blockinfile:
+        path: "{{ hypr_bindings }}"
+        marker: "-- {mark} ANSIBLE MANAGED: andre.lock sleep unlock window"
+        insertafter: EOF
+        block: |
+          -- Replace the stock lid-close action while retaining its display handling.
+          hl.unbind("switch:on:Lid Switch")
+          o.bind("switch:on:Lid Switch", nil,
+            os.getenv("HOME") .. "/.config/omarchy/plugins/andre.lock/sleep-dispatch lid",
+            { locked = true })
+      register: sleep_lock_binding
+
+    - name: Reload Hyprland after changing the lid binding
+      ansible.builtin.command:
+        argv:
+          - hyprctl
+          - reload
+      when: sleep_lock_binding.changed and not ansible_check_mode
+
+    - name: Check Hyprland configuration errors
+      ansible.builtin.command:
+        argv:
+          - hyprctl
+          - configerrors
+      register: hyprland_configerrors
+      changed_when: false
+      when: sleep_lock_binding.changed and not ansible_check_mode
+
+    - name: Require a clean Hyprland reload
+      ansible.builtin.assert:
+        that:
+          - hyprland_configerrors.stdout | trim == ''
+        fail_msg: "Hyprland reported: {{ hyprland_configerrors.stdout }}"
+      when: sleep_lock_binding.changed and not ansible_check_mode
+
+    - name: Reload and restart the sleep monitor after changing its override
+      ansible.builtin.systemd_service:
+        name: omarchy-sleep-lock.service
+        scope: user
+        daemon_reload: true
+        enabled: true
+        state: restarted
+      when: sleep_lock_dropin.changed and not ansible_check_mode
+
+    - name: Rescan Omarchy plugins after activation
+      ansible.builtin.command:
+        argv:
+          - /usr/share/omarchy/bin/omarchy-shell
+          - shell
+          - rescanPlugins
+      changed_when: false
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Read the running lock service status
+      ansible.builtin.command:
+        argv:
+          - /usr/share/omarchy/bin/omarchy-shell
+          - lock
+          - status
+      register: running_lock_status
+      changed_when: false
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Verify the running lock plugin version
+      ansible.builtin.assert:
+        that:
+          - (running_lock_status.stdout | from_json).customization == 'andre.lock'
+          - (running_lock_status.stdout | from_json).customizationVersion == '1.4.0'
+        fail_msg: >-
+          The plugin tree was activated but the running shell did not report
+          andre.lock 1.4.0. The previous tree remains at
+          {{ lock_plugin_previous }} for recovery.
+      when: lock_plugin_changed and not ansible_check_mode
+
+    - name: Remove the temporary previous tree after successful verification
+      ansible.builtin.file:
+        path: "{{ lock_plugin_previous }}"
+        state: absent
+      when: lock_plugin_changed and not ansible_check_mode

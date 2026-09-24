@@ -1,0 +1,9 @@
+all:
+  children:
+    xps_lockscreen:
+      hosts:
+        xps:
+          ansible_connection: local
+          expected_hostname: xps13-2026
+          desktop_user: andre
+          desktop_home: /home/andre

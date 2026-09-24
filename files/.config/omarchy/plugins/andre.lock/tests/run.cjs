@@ -22,13 +22,29 @@ for(const outcome of ['accepted','rejected','unavailable','timeout','cancelled']
 // Verify unchanged stock authentication functions, not just a success-path mock.
 const service=fs.readFileSync(path.join(p,'Service.qml'),'utf8');
 const stock=fs.readFileSync('/usr/share/omarchy/shell/plugins/lock/Service.qml','utf8');
+assert(service.includes('readonly property double unlockWindowDurationMs: unlockWindowSeconds * 1000'));
+assert(service.includes('path: root.home + "/.config/omarchy/shell.json"'));
+assert(!service.includes('unlockWindowDurationMs: 15 * 60 * 1000'));
+assert(service.includes('nearly 30 minutes since the last activity'));
 function fn(src,name){const start=src.indexOf('  function '+name+'(');assert(start>=0);const next=src.indexOf('\n  }',start);return src.slice(start,next+4)}
-for(const name of ['finishUnlock','submitPassword','respondToPasswordPrompt','handlePasswordFailure','startFingerprint','handleFingerprintFinished','requestSessionLock']) assert.equal(fn(service,name),fn(stock,name),name);
+const policy=Function('return ('+fn(service,'unlockWindowSecondsFromConfig')+')')();
+assert.equal(policy('{"version":1,"idle":{"lock":900}}'),900);
+assert.equal(policy('{"version":1,"idle":{"lock":900.9}}'),900);
+assert.equal(policy('{"version":1,"idle":{"lock":0}}'),0);
+for(const raw of ['', 'invalid', '{}', '{"version":2,"idle":{"lock":900}}', '{"version":1,"idle":{"lock":-1}}'])
+  assert.equal(policy(raw),300,raw);
+for(const name of ['respondToPasswordPrompt','handlePasswordFailure','startFingerprint','handleFingerprintFinished','requestSessionLock']) assert.equal(fn(service,name),fn(stock,name),name);
+assert.equal(fn(service,'finishUnlock').replace('    clearUnlockWindow()\n',''),fn(stock,'finishUnlock'));
+assert.equal(fn(service,'submitPassword').replace('    cancelUnlockConfirmation()\n','').replace(
+  '    if (!lockRequested || authenticatingPassword) return\n    if (password.length === 0) {\n      tryPasswordlessUnlock()\n      return\n    }',
+  '    if (!lockRequested || authenticatingPassword || password.length === 0) return'
+),fn(stock,'submitPassword'));
 const observer=fs.readFileSync(path.join(p,'FaceObserver.qml'),'utf8');
 assert(!/finishUnlock|sessionLock|passwordPam|pendingPassword|enteredPassword/.test(observer));
 assert(observer.includes('config: "omarchy-face-observe"'));
 assert(!observer.includes('.respond('));
-assert.equal((service.match(/finishUnlock\(\)/g)||[]).length,(stock.match(/finishUnlock\(\)/g)||[]).length);
+assert.equal((service.match(/finishUnlock\(\)/g)||[]).length,(stock.match(/finishUnlock\(\)/g)||[]).length+1);
+require('./unlock-window.cjs');
 const ui=fs.readFileSync(path.join(p,'FaceStatus.qml'),'utf8');
 assert(!/PopupWindow|PanelWindow|WlSessionLock/.test(ui));
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'lock-observe-test-'));

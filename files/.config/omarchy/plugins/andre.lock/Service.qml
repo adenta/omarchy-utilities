@@ -16,6 +16,108 @@ Item {
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
 
+  // Authentication clones intentionally receive no idleConfig capability, so
+  // watch the same user shell.json that drives the idle service. Missing or
+  // invalid configuration matches Omarchy's conservative five-minute default.
+  property int unlockWindowSeconds: 300
+  function unlockWindowSecondsFromConfig(raw) {
+    try {
+      var parsed = JSON.parse(String(raw || ""))
+      var configured = parsed && parsed.version === 1 && parsed.idle
+          ? Number(parsed.idle.lock) : NaN
+      return Number.isFinite(configured) && configured >= 0 ? Math.floor(configured) : 300
+    } catch (error) {
+      return 300
+    }
+  }
+  FileView {
+    path: root.home + "/.config/omarchy/shell.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.unlockWindowSeconds = root.unlockWindowSecondsFromConfig(text())
+    onLoadFailed: root.unlockWindowSeconds = 300
+    onFileChanged: reload()
+  }
+
+  // Memory-only: a shell restart/recovery always requires authentication.
+  readonly property double unlockWindowDurationMs: unlockWindowSeconds * 1000
+  property double unlockWindowStartedMs: -1
+  property double unlockWindowDeadlineMs: 0
+  readonly property double unlockConfirmationDurationMs: 5000
+  property double unlockConfirmationDeadlineMs: 0
+  property bool unlockWindowAvailable: false
+  property bool unlockWindowVisualReady: false
+  property bool enterHeld: false
+  property bool displayBlanked: false
+  property string unlockNotice: ""
+  BootClock { id: bootClock }
+
+  function cancelUnlockConfirmation() {
+    unlockConfirmationDeadlineMs = 0
+    unlockNotice = ""
+  }
+
+  function refreshUnlockWindow() {
+    if (unlockWindowDeadlineMs <= 0) {
+      unlockWindowAvailable = false
+      return NaN
+    }
+    var now = bootClock.readMs()
+    if (!Number.isFinite(now) || now < unlockWindowStartedMs || now >= unlockWindowDeadlineMs) {
+      var expiredWhileConfirming = unlockConfirmationDeadlineMs > 0 &&
+          Number.isFinite(now) && now >= unlockWindowDeadlineMs
+      clearUnlockWindow()
+      if (expiredWhileConfirming) unlockNotice = "Unlock window ended — enter password"
+      return NaN
+    }
+    unlockWindowAvailable = lockRequested && sessionLock.secure
+    if (unlockConfirmationDeadlineMs > 0 && now >= unlockConfirmationDeadlineMs)
+      cancelUnlockConfirmation()
+    return now
+  }
+
+  function handleEnterPressed(value, autoRepeat) {
+    if (autoRepeat || enterHeld) return
+    enterHeld = true
+    if (!lockRequested || authenticatingPassword) return
+    var password = String(value || "")
+    enteredPassword = ""
+    submitPassword(password)
+  }
+
+  function handleEnterReleased(autoRepeat) {
+    if (!autoRepeat) enterHeld = false
+  }
+
+  Timer {
+    interval: 100
+    repeat: true
+    running: root.lockRequested && !root.displayBlanked && root.unlockWindowDeadlineMs > 0
+    onTriggered: root.refreshUnlockWindow()
+  }
+
+  function clearUnlockWindow() {
+    cancelUnlockConfirmation()
+    unlockWindowAvailable = false
+    unlockWindowVisualReady = false
+    unlockWindowStartedMs = -1
+    unlockWindowDeadlineMs = 0
+  }
+
+  function tryPasswordlessUnlock() {
+    if (!lockRequested || !sessionLock.secure || authenticating) return false
+    var now = refreshUnlockWindow()
+    if (!unlockWindowAvailable || !Number.isFinite(now)) return false
+    if (unlockConfirmationDeadlineMs <= 0) {
+      failureMessage = ""
+      unlockConfirmationDeadlineMs = Math.min(now + unlockConfirmationDurationMs, unlockWindowDeadlineMs)
+      return false
+    }
+    logEvent("unlock-window-used")
+    finishUnlock()
+    return true
+  }
+
   property bool lockRequested: false
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
@@ -142,14 +244,25 @@ Item {
     if (fingerprintPam.active) fingerprintPam.abort()
   }
 
-  function beginLock() {
+  function beginLock(allowPasswordlessUnlock) {
     if (!passwordPamConfigured) {
       logEvent("lock-denied: missing-pam")
       return false
     }
 
+    clearUnlockWindow()
+    if (allowPasswordlessUnlock === true) {
+      var now = bootClock.readMs()
+      if (Number.isFinite(now) && now >= 0) {
+        unlockWindowStartedMs = now
+        unlockWindowDeadlineMs = now + unlockWindowDurationMs
+      }
+    }
     resetAuthenticationState()
     lockRequested = true
+    displayBlanked = false
+    enterHeld = false
+    refreshUnlockWindow()
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -165,6 +278,7 @@ Item {
   function finishUnlock() {
     if (!root.locked && !lockRequested) return
 
+    clearUnlockWindow()
     lockRequested = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
@@ -182,19 +296,33 @@ Item {
   }
 
   function runWake() {
+    refreshUnlockWindow()
+    displayBlanked = false
+    // The hint stays hidden until eligibility has been checked against a fresh
+    // boot-clock reading. This prevents a pre-suspend state from flashing on
+    // screen while the output is returning.
+    unlockWindowVisualReady = true
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
   }
 
   function runBlank() {
+    cancelUnlockConfirmation()
+    unlockWindowVisualReady = false
+    displayBlanked = true
     faceObserver.resetCycle() // release camera; next real activity may observe again
     if (!blankProcess.running) blankProcess.running = true
   }
 
   function submitPassword(value) {
     var password = String(value || "")
-    if (!lockRequested || authenticatingPassword || password.length === 0) return
+    if (!lockRequested || authenticatingPassword) return
+    if (password.length === 0) {
+      tryPasswordlessUnlock()
+      return
+    }
 
+    cancelUnlockConfirmation()
     runWake()
     pendingPassword = password
     failureMessage = ""
@@ -252,6 +380,7 @@ Item {
 
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
+      root.refreshUnlockWindow()
       if (secure) {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
@@ -270,6 +399,7 @@ Item {
       }
 
       if (!locked && root.lockRequested) {
+        root.clearUnlockWindow()
         root.lockRequested = false
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
@@ -295,8 +425,17 @@ Item {
         inputEnabled: root.lockRequested
         loadBackground: root.locked
         passwordText: root.enteredPassword
-        onPasswordTextEdited: function(password) { root.enteredPassword = password }
-        onSubmitPassword: function(password) { root.submitPassword(password) }
+        unlockWindowAvailable: root.unlockWindowAvailable
+        unlockWindowHintVisible: root.unlockWindowVisualReady && root.unlockWindowAvailable
+        unlockConfirmationPending: root.unlockConfirmationDeadlineMs > 0
+        unlockNotice: root.unlockNotice
+        onPasswordTextEdited: function(password) {
+          if (password.length > 0) root.cancelUnlockConfirmation()
+          root.enteredPassword = password
+        }
+        onEnterPressed: function(password, autoRepeat) { root.handleEnterPressed(password, autoRepeat) }
+        onEnterReleased: function(autoRepeat) { root.handleEnterReleased(autoRepeat) }
+        onOtherKeyPressed: root.cancelUnlockConfirmation()
         onClearFailureRequested: root.failureMessage = ""
         faceOutcome: faceObserver.outcome
         faceUpstream: faceObserver.upstream
@@ -307,7 +446,7 @@ Item {
         faceEnabled: faceObserver.observationEnabled
         faceTopMargin: Math.max(8, Math.min(120, Number(root.observeSettings.topMargin) || 20))
         onFaceRetryRequested: { root.runWake(); faceObserver.retry() }
-        onFaceDetailsRequested: { root.runWake(); faceObserver.refresh() }
+        onFaceDetailsRequested: { root.cancelUnlockConfirmation(); root.runWake(); faceObserver.refresh() }
         onWakeRequested: { root.runWake(); faceObserver.activity() }
       }
 
@@ -411,7 +550,7 @@ Item {
 
   Timer {
     id: idleBlankTimer
-    interval: 5000
+    interval: 60000
     repeat: false
     property double armedAt: 0
     onTriggered: {
@@ -467,6 +606,11 @@ Item {
     function onScreensChanged() {
       root.requestSessionLock()
 
+      // An output returning after suspend is the earliest reliable wake cue.
+      // Refresh while the visual gate is still closed, then reveal only the
+      // current state.
+      if (root.lockRequested) root.runWake()
+
       // A monitor still coming up has no workspace, so cannot answer yet.
       strandedLockRetryTimer.rearm()
       root.checkStrandedLock()
@@ -474,6 +618,7 @@ Item {
   }
 
   onAuthenticatingPasswordChanged: {
+    if (!authenticatingPassword) enterHeld = false
     if (!lockRequested) return
     if (authenticatingPassword) idleBlankTimer.stop()
     else armBlankTimer()
@@ -509,9 +654,27 @@ Item {
     target: "lock"
 
     function lock(): string {
-      faceObserver.resetCycle() // also called by the stock pre-suspend lock helper
+      faceObserver.resetCycle()
+      // Explicit/manual and ordinary idle locks revoke any existing window.
+      root.clearUnlockWindow()
       if (!root.passwordPamConfigured) return "missing-pam"
       if (!root.locked && !root.beginLock()) return "failed"
+      return "ok"
+    }
+
+    function lockForSleep(): string {
+      faceObserver.resetCycle()
+      root.cancelUnlockConfirmation()
+      // PrepareForSleep invokes this even if the lid-close request already
+      // acquired the lock. Close the presentation gate again immediately
+      // before suspend so an old hint cannot be composited on resume.
+      root.unlockWindowVisualReady = false
+      if (!root.passwordPamConfigured) return "missing-pam"
+      // Intentional policy quirk: a new lid/sleep lock starts a fresh window
+      // even if the open-lid idle cycle was already underway. With a 15-minute
+      // policy this can allow nearly 30 minutes since the last activity.
+      // Duplicate lid/sleep requests never extend or grant an existing lock.
+      if (!root.locked && !root.beginLock(true)) return "failed"
       return "ok"
     }
 
@@ -522,7 +685,11 @@ Item {
     function status(): string {
       return JSON.stringify({
         customization: "andre.lock",
-        customizationVersion: "1.0.0",
+        customizationVersion: "1.4.0",
+        unlockWindowAvailable: root.unlockWindowAvailable,
+        unlockConfirmationPending: root.unlockConfirmationDeadlineMs > 0,
+        unlockWindowDeadlineMs: root.unlockWindowDeadlineMs,
+        unlockWindowDurationMs: root.unlockWindowDurationMs,
         faceObservation: faceObserver.outcome,
         faceEnrolled: faceObserver.enrolled,
         upstream: faceObserver.upstream,

@@ -28,7 +28,11 @@ Item {
   signal faceRetryRequested()
   signal faceDetailsRequested()
 
-  readonly property string placeholderText: "Enter Password"
+  property bool unlockWindowAvailable: false
+  property bool unlockWindowHintVisible: false
+  property bool unlockConfirmationPending: false
+  property string unlockNotice: ""
+  readonly property string placeholderText: unlockConfirmationPending ? "Press Enter again to unlock" : "Enter password"
   readonly property int fieldWidth: 381
   readonly property int fieldHeight: 67
   readonly property int outlineThickness: 3
@@ -49,7 +53,9 @@ Item {
     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
-  signal submitPassword(string password)
+  signal enterPressed(string password, bool autoRepeat)
+  signal enterReleased(bool autoRepeat)
+  signal otherKeyPressed()
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
@@ -145,6 +151,7 @@ Item {
 
       TextInput {
         id: passwordInput
+        objectName: "passwordInput"
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
@@ -182,13 +189,21 @@ Item {
           if (text.length > 0 && root.failureMessage.length > 0) root.clearFailureRequested()
         }
 
-        onAccepted: {
-          var submitted = root.passwordText
-          root.passwordTextEdited("")
-          if (submitted.length > 0) root.submitPassword(submitted)
+        Keys.onReleased: function(event) {
+          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            root.enterReleased(event.isAutoRepeat)
+            event.accepted = true
+          }
         }
 
         Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            event.accepted = true // prevent TextInput.accepted from submitting twice
+            root.wakeRequested()
+            root.enterPressed(root.passwordText, event.isAutoRepeat)
+            return
+          }
+          root.otherKeyPressed()
           if (event.key === Qt.Key_Escape && faceStatus.opened) {
             faceStatus.close()
             event.accepted = true
@@ -203,6 +218,7 @@ Item {
       }
 
       Text {
+        objectName: "unlockPrompt"
         textFormat: Text.PlainText
         anchors.fill: passwordInput
         text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
@@ -213,7 +229,8 @@ Item {
         font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+        fontSizeMode: Text.HorizontalFit
+        minimumPixelSize: 12
       }
 
       // Fingerprint hint pinned inside the field's right edge when a sensor is
@@ -233,6 +250,25 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
       }
+    }
+
+    Text {
+      objectName: "unlockNotice"
+      anchors.top: inputField.bottom
+      anchors.topMargin: 12
+      anchors.horizontalCenter: inputField.horizontalCenter
+      width: Math.min(480, parent.width - 32)
+      text: root.unlockNotice.length > 0 ? root.unlockNotice : "↵ twice to unlock"
+      visible: root.passwordText.length === 0 && !root.authenticatingPassword &&
+        root.failureMessage.length === 0 && (root.unlockNotice.length > 0 ||
+        (root.unlockWindowHintVisible && !root.unlockConfirmationPending))
+      textFormat: Text.PlainText
+      color: Color.lock.placeholder
+      opacity: root.unlockNotice.length > 0 ? 1 : 0.62
+      font.family: Style.font.family
+      font.pixelSize: Math.round(root.fieldFontSize * 0.55)
+      horizontalAlignment: Text.AlignHCenter
+      wrapMode: Text.WordWrap
     }
   }
   FaceStatus {

@@ -1,8 +1,9 @@
 # Omarchy utilities
 
 Shared personal desktop customizations for XPS and Grace, initially imported
-from a working Omarchy 4.0.3 installation. One source repository, ordinary file
-copying, and agents following [AGENTS.md](AGENTS.md). There is no installer,
+from a working Omarchy 4.0.3 installation. One source repository and agents
+following [AGENTS.md](AGENTS.md). The XPS lock screen has one narrow Ansible
+deployment; the other components still use selective file copying. There is no
 machine-profile framework, deployment daemon, or automatic updater.
 
 The normal checkout is `~/Projects/omarchy-utilities`. Edit here, test, commit and
@@ -18,7 +19,7 @@ directly over existing configuration.
 | --- | --- | --- |
 | Bar and panels | `files/.config/omarchy/plugins/andre.{bar,clock,system-pulse,backups,credits,background,idle,agents}` | Omarchy shell/Quickshell; htop for System Pulse; open each panel and run its existing tests. |
 | Battery history panel (XPS only) | `files/.config/omarchy/plugins/andre.power` | UPower; preserve history/aggregation, run `node tests/history.test.cjs`, `node tests/aggregation.test.cjs`, and `node tests/run.cjs` inside the plugin. Grace keeps stock power. |
-| Lock-screen observation (XPS only) | `files/.config/omarchy/plugins/andre.lock` | Facelock via dedicated observation PAM; icons, local logs and upstream baseline checking. See [setup and boundaries](docs/face-observe.md). |
+| Lock screen (XPS only) | `files/.config/omarchy/plugins/andre.lock`, `deploy/lockscreen.yml` | Password and fingerprint authentication, sleep unlock window, observation-only Facelock, and an atomic Ansible deployment. See [setup and boundaries](docs/face-observe.md). |
 | Shared window and keyboard behavior | `files/.config/hypr/omarchy-utilities.lua` | Load once at the end of personal `hyprland.lua`; reload and check config errors. |
 | Themes and night light | `files/.local/share/darkman/`, `files/.config/omarchy/hooks/`, the two orb wallpapers, and `hyprsunset.conf` | Darkman, Omarchy, Hyprsunset; check light/dark transitions and night-light temperature. Darkman's location stays local. |
 | Pokémon screensaver | `files/.local/bin/omarchy-pokemon-*`, `files/.local/share/omarchy-pokemon-screensaver/`, `files/.config/omarchy/screensaver/`, `andre.idle` | Omarchy renderer/ttfx and a supported terminal; verify launch, exit, and artwork cycling. Keep rotation state local. |
@@ -139,6 +140,38 @@ unless intentionally switching methods. The module's source is copied to both
 machines, while the opt-in and service override are local integration settings.
 
 ## Checking a change
+
+### Deploying the XPS lock screen
+
+Install `ansible-core` on the controller, open and unlock the XPS desktop, then
+run from the repository root:
+
+```sh
+ansible-playbook deploy/lockscreen.yml --check --diff
+ansible-playbook deploy/lockscreen.yml
+```
+
+The inventory is intentionally limited to the local `andre` session on
+`xps13-2026`; the playbook refuses any other hostname, account, or home. It
+stages and tests the complete `andre.lock` tree, swaps that owned directory as
+one release, installs the narrow sleep-monitor override, manages only its
+marked block in `bindings.lua`, reloads Hyprland, and verifies the running
+plugin reports version 1.4.0. It never replaces the surrounding plugin,
+Hyprland, or systemd directories.
+
+If activation stops after moving the old tree, leave the evidence in
+`~/.local/state/omarchy-utilities/` until it is understood. To restore that
+tree from a TTY while the desktop is unlocked:
+
+```sh
+mv ~/.config/omarchy/plugins/andre.lock ~/.local/state/omarchy-utilities/andre.lock.failed
+mv ~/.local/state/omarchy-utilities/andre.lock.previous ~/.config/omarchy/plugins/andre.lock
+omarchy-shell shell rescanPlugins
+```
+
+After a verified deployment, the temporary previous tree is removed. Roll
+back later by checking out the known-good repository revision and running the
+same playbook again.
 
 Run the relevant existing panel tests:
 
