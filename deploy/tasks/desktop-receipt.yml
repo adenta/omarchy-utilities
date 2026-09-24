@@ -23,7 +23,7 @@
 
 - name: Record the successful desktop release
   ansible.builtin.copy:
-    content: >-
+    content: |
       {{
         {
           'schemaVersion': 1,
@@ -31,6 +31,6 @@
           'profile': inventory_hostname,
           'managedPaths': desktop_managed_paths
         } | to_nice_json(indent=2, ensure_ascii=false)
-      }}{{ '\n' }}
+      }}
     dest: "{{ desktop_state_dir }}/receipt.json"
     mode: "0600"

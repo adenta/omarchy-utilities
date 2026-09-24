@@ -50,7 +50,7 @@
 
 - name: Record Grace agent remote terminal release
   ansible.builtin.copy:
-    content: >-
+    content: |
       {{
         {
           'schemaVersion': 1,
@@ -63,7 +63,7 @@
           ],
           'managedBlocks': ['.bash_profile:remote-codex-terminal']
         } | to_nice_json(indent=2, ensure_ascii=false)
-      }}{{ '\n' }}
+      }}
     dest: "{{ expected_home }}/{{ deployment_state_rel }}/receipt.json"
     mode: "0600"
   when: "'all' in ansible_run_tags"
